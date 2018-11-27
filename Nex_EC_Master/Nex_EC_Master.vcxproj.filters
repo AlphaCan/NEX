@@ -15,15 +15,141 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="pch.h">
+    <ClInclude Include="osal\osal.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="osal\win32\inttypes.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="osal\win32\osal_defs.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="osal\win32\osal_win32.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="osal\win32\stdint.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\bluetooth.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\bpf.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\namedb.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\pcap.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\sll.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\usb.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\vlan.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\bittypes.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\ip6_misc.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\Packet32.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap-bpf.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap-namedb.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap-stdinc.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\remote-ext.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\wpcap\Include\Win32-Extensions.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\nicdrv.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="oshw\win32\oshw.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="soem\ethercat.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="soem\ethercatbase.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="soem\ethercatcoe.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="soem\ethercatconfig.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="soem\ethercatdc.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="soem\ethercatfoe.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="soem\ethercatmain.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="soem\ethercatprint.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="soem\ethercatsoe.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="soem\ethercattype.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="pch.cpp">
+    <ClCompile Include="osal\win32\osal.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Nex_EC_Master.cpp">
+    <ClCompile Include="oshw\win32\nicdrv.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="oshw\win32\oshw.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="soem\ethercatbase.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="soem\ethercatcoe.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="soem\ethercatconfig.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="soem\ethercatdc.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="soem\ethercatfoe.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="soem\ethercatmain.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="soem\ethercatprint.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="soem\ethercatsoe.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="test\win32\simple_test\simple_test.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -18,6 +18,55 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="osal\osal.h" />
+    <ClInclude Include="osal\win32\inttypes.h" />
+    <ClInclude Include="osal\win32\osal_defs.h" />
+    <ClInclude Include="osal\win32\osal_win32.h" />
+    <ClInclude Include="osal\win32\stdint.h" />
+    <ClInclude Include="oshw\win32\nicdrv.h" />
+    <ClInclude Include="oshw\win32\oshw.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\bittypes.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\ip6_misc.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\Packet32.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap-bpf.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap-namedb.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap-stdinc.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\bluetooth.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\bpf.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\namedb.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\pcap.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\sll.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\usb.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\pcap\vlan.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\remote-ext.h" />
+    <ClInclude Include="oshw\win32\wpcap\Include\Win32-Extensions.h" />
+    <ClInclude Include="soem\ethercat.h" />
+    <ClInclude Include="soem\ethercatbase.h" />
+    <ClInclude Include="soem\ethercatcoe.h" />
+    <ClInclude Include="soem\ethercatconfig.h" />
+    <ClInclude Include="soem\ethercatdc.h" />
+    <ClInclude Include="soem\ethercatfoe.h" />
+    <ClInclude Include="soem\ethercatmain.h" />
+    <ClInclude Include="soem\ethercatprint.h" />
+    <ClInclude Include="soem\ethercatsoe.h" />
+    <ClInclude Include="soem\ethercattype.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="osal\win32\osal.c" />
+    <ClCompile Include="oshw\win32\nicdrv.c" />
+    <ClCompile Include="oshw\win32\oshw.c" />
+    <ClCompile Include="soem\ethercatbase.c" />
+    <ClCompile Include="soem\ethercatcoe.c" />
+    <ClCompile Include="soem\ethercatconfig.c" />
+    <ClCompile Include="soem\ethercatdc.c" />
+    <ClCompile Include="soem\ethercatfoe.c" />
+    <ClCompile Include="soem\ethercatmain.c" />
+    <ClCompile Include="soem\ethercatprint.c" />
+    <ClCompile Include="soem\ethercatsoe.c" />
+    <ClCompile Include="test\win32\simple_test\simple_test.c" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{FEEAFF25-04DC-448A-BA8F-59B34892D65E}</ProjectGuid>
@@ -72,6 +121,8 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
@@ -84,17 +135,20 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>.\soem;.\oshw\win32\wpcap\Include\pcap;.\oshw\win32\wpcap\Include;.\oshw\win32;.\osal\win32;.\osal;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>.\oshw\win32\wpcap\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>wpcap.lib;Packet.lib;WinMM.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -150,18 +204,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="pch.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="Nex_EC_Master.cpp" />
-    <ClCompile Include="pch.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
-    </ClCompile>
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
