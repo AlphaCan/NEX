@@ -1,17 +1,10 @@
-/*
- * Licensed under the GNU General Public License version 2 with exceptions. See
- * LICENSE file in the project root for full license information
- */
-
-/** \file
- * \brief
- * Base EtherCAT functions.
+﻿/** 
+ * 
+ * 实现EtherCAT最基本的功能
  *
- * Setting up a datagram in an ethernet frame.
- * EtherCAT datagram primitives, broadcast, auto increment, configured and
- * logical addressed data transfers. All base transfers are blocking, so
- * wait for the frame to be returned to the master or timeout. If this is
- * not acceptable build your own datagrams and use the functions from nicdrv.c.
+ *在以太网帧中设置数据报。
+ * EtherCAT数据报原语，广播，自动增量，配置和
+ *逻辑寻址数据传输。 所有基本传输都是阻塞的，因此请等待帧返回主服务器或超时。
  */
 
 #include <stdio.h>
@@ -21,12 +14,12 @@
 #include "ethercattype.h"
 #include "ethercatbase.h"
 
-/** Write data to EtherCAT datagram.
+/** 将数据写进数据报
  *
- * @param[out] datagramdata   = data part of datagram
- * @param[in]  com            = command
- * @param[in]  length         = length of databuffer
- * @param[in]  data           = databuffer to be copied into datagram
+ * @param[out] datagramdata   数据部分
+ * @param[in]  com            命令
+ * @param[in]  length         写入的数据长度
+ * @param[in]  data           要写到数据报中的数据
  */
 static void Nexx__writedatagramdata(void *datagramdata, Nex_cmdtype com, uint16 length, const void * data)
 {
@@ -34,16 +27,12 @@ static void Nexx__writedatagramdata(void *datagramdata, Nex_cmdtype com, uint16 
    {
       switch (com)
       {
-         case Nex_CMD_NOP:
-            /* Fall-through */
-         case Nex_CMD_APRD:
-            /* Fall-through */
+		  /*读取数据的话，需要将数据报清空，以免产生错误数据*/
+         case Nex_CMD_NOP:          
+         case Nex_CMD_APRD:       
          case Nex_CMD_FPRD:
-            /* Fall-through */
          case Nex_CMD_BRD:
-            /* Fall-through */
-         case Nex_CMD_LRD:
-            /* no data to write. initialise data so frame is in a known state */
+         case Nex_CMD_LRD:       
             memset(datagramdata, 0, length);
             break;
          default:
@@ -53,16 +42,16 @@ static void Nexx__writedatagramdata(void *datagramdata, Nex_cmdtype com, uint16 
    }
 }
 
-/** Generate and set EtherCAT datagram in a standard ethernet frame.
+/** 创建一个标准的EtherCAT数据报文
  *
- * @param[in] port        = port context struct
- * @param[out] frame       = framebuffer
- * @param[in]  com         = command
- * @param[in]  idx         = index used for TX and RX buffers
- * @param[in]  ADP         = Address Position
- * @param[in]  ADO         = Address Offset
- * @param[in]  length      = length of datagram excluding EtherCAT header
- * @param[in]  data        = databuffer to be copied in datagram
+ * @param[in] port         port结构体
+ * @param[out] frame       数据报
+ * @param[in]  com         命令
+ * @param[in]  idx         数据发送与接收的索引，避免丢数据
+ * @param[in]  ADP         寄存器地址
+ * @param[in]  ADO         地址偏移
+ * @param[in]  length      除去EtherCAT报头外的数据长度
+ * @param[in]  data        准备写到报文中数据
  * @return always 0
  */
 int Nexx__setupdatagram(Nexx__portt *port, void *frame, uint8 com, uint8 idx, uint16 ADP, uint16 ADO, uint16 length, void *data)
@@ -71,8 +60,6 @@ int Nexx__setupdatagram(Nexx__portt *port, void *frame, uint8 com, uint8 idx, ui
    uint8 *frameP;
 
    frameP = frame;
-   /* Ethernet header is preset and fixed in frame buffers
-      EtherCAT header needs to be added after that */
    datagramP = (Nex_comt*)&frameP[ETH_HEADERSIZE];
    datagramP->elength = htoes(Nex_ECATTYPE + Nex_HEADERSIZE + length);
    datagramP->command = com;
