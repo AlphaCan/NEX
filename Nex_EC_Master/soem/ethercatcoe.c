@@ -125,26 +125,26 @@ int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 sub
    boolean NotLast;
 
    Nex_clearmbx(&MbxIn);
-   /* Empty slave out mailbox if something is in. Timout set to 0 */
+   /* 如果从站输出邮箱有东西存在，则清空*/
    wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, 0);
    Nex_clearmbx(&MbxOut);
    aSDOp = (Nex_SDOt *)&MbxIn;
    SDOp = (Nex_SDOt *)&MbxOut;
-   SDOp->MbxHeader.length = htoes(0x000a);
-   SDOp->MbxHeader.address = htoes(0x0000);
-   SDOp->MbxHeader.priority = 0x00;
-   /* get new mailbox count value, used as session handle */
+   SDOp->MbxHeader.length = htoes(0x000a);//跟随的邮箱服务数据的长度
+   SDOp->MbxHeader.address = htoes(0x0000);//发送方的站地地址
+   SDOp->MbxHeader.priority = 0x00;//优先级
+   //得到邮箱计数值
    cnt = Nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
-   context->slavelist[slave].mbx_cnt = cnt;
-   SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
-   SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOREQ << 12)); /* number 9bits service upper 4 bits (SDO request) */
+   context->slavelist[slave].mbx_cnt = cnt;//序列号
+   SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); //邮箱类型+序列号
+   SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOREQ << 12)); //number 9bit + Res 3bit + Type 4bit
    if (CA)
    {
-      SDOp->Command = ECT_SDO_UP_REQ_CA; /* upload request complete access */
+      SDOp->Command = ECT_SDO_UP_REQ_CA; /* 操作完整的数据对象 上传请求 */
    }
    else
    {
-      SDOp->Command = ECT_SDO_UP_REQ; /* upload request normal */
+      SDOp->Command = ECT_SDO_UP_REQ; /* 常规上传请求 */
    }
    SDOp->Index = htoes(index);
    if (CA && (subindex > 1))
@@ -153,15 +153,15 @@ int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 sub
    }
    SDOp->SubIndex = subindex;
    SDOp->ldata[0] = 0;
-   /* send CoE request to slave */
+   /* 将COE请求发送给从站 */
    wkc = Nexx__mbxsend(context, slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
-   if (wkc > 0) /* succeeded to place mailbox in slave ? */
+   if (wkc > 0) //建立邮箱通讯？
    {
-      /* clean mailboxbuffer */
+      /* 清零缓冲区 */
       Nex_clearmbx(&MbxIn);
-      /* read slave response */
+      /*通过邮箱读取从站数据 */
       wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, timeout);
-      if (wkc > 0) /* succeeded to read slave response ? */
+      if (wkc > 0) //成功回应
       {
          /* slave response should be CoE, SDO response and the correct index */
          if (((aSDOp->MbxHeader.mbxtype & 0x0f) == ECT_MBXT_COE) &&

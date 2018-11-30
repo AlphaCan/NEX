@@ -330,15 +330,23 @@ enum
    ECT_COES_SDOINFO
 };
 
-/** CoE SDO commands */
+/** COE√¸¡Ó */
 enum
 {
+//	0	1	2	3	4	5	6	7
+//	1	0	0	0	0	1	0	0
    ECT_SDO_DOWN_INIT    = 0x21,
+//	1	1	0	0	0	1	0	0
    ECT_SDO_DOWN_EXP     = 0x23,
+//	0	0	0	0	0	1	0	0
    ECT_SDO_DOWN_INIT_CA = 0x31,
+//	0	0	0	0	0	0	1	0
    ECT_SDO_UP_REQ       = 0x40,
+//	0	0	0	0	1	0	1	0
    ECT_SDO_UP_REQ_CA    = 0x50,
+//	0	0	0	0	0	1	1	0
    ECT_SDO_SEG_UP_REQ   = 0x60,
+//	0	0	0	0	0	0	0	1
    ECT_SDO_ABORT        = 0x80
 };
 
