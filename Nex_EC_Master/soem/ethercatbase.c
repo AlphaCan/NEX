@@ -343,29 +343,29 @@ int Nexx__APWR(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *d
    return wkc;
 }
 
-/** APWRw "auto increment address write" word primitive. Blocking.
+/** APWRw 自增地址写. Blocking.
  *
- * @param[in] port        = port context struct
- * @param[in] ADP         = Address Position, each slave ++, slave that has 0 writes.
- * @param[in] ADO         = Address Offset, slave memory address
- * @param[in] data        = word data to write to slave.
- * @param[in] timeout     = timeout in us, standard is Nex_TIMEOUTRET
- * @return Workcounter or Nex_NOFRAME
+ * @param[in] port        Port结构体
+ * @param[in] ADP         设备地址
+ * @param[in] ADO         偏移地址 从在内存地址
+ * @param[in] data        写入从站的WORD字节数据
+ * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
+ * @return WKC or Nex_NOFRAME
  */
 int Nexx__APWRw(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 data, int timeout)
 {
    return Nexx__APWR(port, ADP, ADO, sizeof(data), &data, timeout);
 }
 
-/** FPWR "configured address write" primitive. Blocking.
+/** FPWR 设置地址写. Blocking.
  *
- * @param[in] port        = port context struct
- * @param[in] ADP         = Address Position, slave that has address writes.
- * @param[in] ADO         = Address Offset, slave memory address
- * @param[in] length      = length of databuffer
- * @param[in] data        = databuffer to write to slave.
- * @param[in] timeout     = timeout in us, standard is Nex_TIMEOUTRET
- * @return Workcounter or Nex_NOFRAME
+ * @param[in] port        Port结构体
+ * @param[in] ADP         设备地址
+ * @param[in] ADO         偏移地址
+ * @param[in] length      数据长度
+ * @param[in] data        要写到从站的数据
+ * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
+ * @return WKC or Nex_NOFRAME
  */
 int Nexx__FPWR(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
@@ -380,28 +380,28 @@ int Nexx__FPWR(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *d
    return wkc;
 }
 
-/** FPWR "configured address write" primitive. Blocking.
+/** FPWR 设置地址写. Blocking.
  *
- * @param[in] port        = port context struct
- * @param[in] ADP         = Address Position, slave that has address writes.
- * @param[in] ADO         = Address Offset, slave memory address
- * @param[in] data        = word to write to slave.
- * @param[in] timeout     = timeout in us, standard is Nex_TIMEOUTRET
- * @return Workcounter or Nex_NOFRAME
+ * @param[in] port        Port结构体
+ * @param[in] ADP         设备地址
+ * @param[in] ADO         偏移地址
+ * @param[in] data        写入从站的WORD数据
+ * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
+ * @return WKC or Nex_NOFRAME
  */
 int Nexx__FPWRw(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 data, int timeout)
 {
    return Nexx__FPWR(port, ADP, ADO, sizeof(data), &data, timeout);
 }
 
-/** LRW "logical memory read / write" primitive. Blocking.
+/** LRW 逻辑地址读/写. Blocking.
  *
- * @param[in] port        = port context struct
- * @param[in]     LogAdr  = Logical memory address
- * @param[in]     length  = length of databuffer
- * @param[in,out] data    = databuffer to write to and read from slave.
- * @param[in]     timeout = timeout in us, standard is Nex_TIMEOUTRET
- * @return Workcounter or Nex_NOFRAME
+ * @param[in] port        Port结构体
+ * @param[in]     LogAdr  逻辑内存地址
+ * @param[in]     length  数据长度
+ * @param[in,out] data    要写入或读取的从站数据
+ * @param[in]     timeout 溢出时间 标准是 Nex_TIMEOUTRET us
+ * @return WKC or Nex_NOFRAME
  */
 int Nexx__LRW(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, int timeout)
 {
@@ -420,14 +420,14 @@ int Nexx__LRW(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, int t
    return wkc;
 }
 
-/** LRD "logical memory read" primitive. Blocking.
+/** LRD 逻辑地址读. Blocking.
  *
- * @param[in] port        = port context struct
- * @param[in]  LogAdr     = Logical memory address
- * @param[in]  length     = length of bytes to read from slave.
- * @param[out] data       = databuffer to read from slave.
- * @param[in]  timeout    = timeout in us, standard is Nex_TIMEOUTRET
- * @return Workcounter or Nex_NOFRAME
+ * @param[in] port        Port结构体
+ * @param[in]  LogAdr     逻辑地址
+ * @param[in]  length     从从站读取到的字节长度
+ * @param[out] data       从从站读取到的数据
+ * @param[in]  timeout    溢出时间 标准是 Nex_TIMEOUTRET us
+ * @return WKC or Nex_NOFRAME
  */
 int Nexx__LRD(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, int timeout)
 {
@@ -446,14 +446,14 @@ int Nexx__LRD(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, int t
    return wkc;
 }
 
-/** LWR "logical memory write" primitive. Blocking.
+/** LWR 逻辑地址写. Blocking.
  *
- * @param[in] port        = port context struct
- * @param[in] LogAdr      = Logical memory address
- * @param[in] length      = length of databuffer
- * @param[in] data        = databuffer to write to slave.
- * @param[in] timeout     = timeout in us, standard is Nex_TIMEOUTRET
- * @return Workcounter or Nex_NOFRAME
+ * @param[in] port        Port结构体
+ * @param[in] LogAdr      逻辑地址
+ * @param[in] length      数据长度
+ * @param[in] data        要写入的数据
+ * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
+ * @return WKC or Nex_NOFRAME
  */
 int Nexx__LWR(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, int timeout)
 {
@@ -468,17 +468,17 @@ int Nexx__LWR(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, int t
    return wkc;
 }
 
-/** LRW "logical memory read / write" primitive plus Clock Distribution. Blocking.
- * Frame consists of two datagrams, one LRW and one FPRMW.
+/** LRW 逻辑地址读/写再加上分布时钟. Blocking.
+ * 数据帧包括两个数据报, 一个 LRW 一个 FPRMW.
  *
- * @param[in] port        = port context struct
- * @param[in]     LogAdr  = Logical memory address
- * @param[in]     length  = length of databuffer
- * @param[in,out] data    = databuffer to write to and read from slave.
- * @param[in]     DCrs    = Distributed Clock reference slave address.
- * @param[out]    DCtime  = DC time read from reference slave.
- * @param[in]     timeout = timeout in us, standard is Nex_TIMEOUTRET
- * @return Workcounter or Nex_NOFRAME
+ * @param[in] port        Port结构体
+ * @param[in]     LogAdr  逻辑内存地址
+ * @param[in]     length  数据长度
+ * @param[in,out] data    从站读取或者写入的数据
+ * @param[in]     DCrs    从站的分布时钟地址
+ * @param[out]    DCtime  从从站读取到的DC时间
+ * @param[in]     timeout Distributed Clock reference slave address.
+ * @return WKC or Nex_NOFRAME
  */
 int Nexx__LRWDC(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, uint16 DCrs, int64 *DCtime, int timeout)
 {
@@ -488,9 +488,9 @@ int Nexx__LRWDC(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, uin
    uint64 DCtE;
 
    idx = Nexx__getindex(port);
-   /* LRW in first datagram */
+   /* LRW报文 */
    Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_LRW, idx, LO_WORD(LogAdr), HI_WORD(LogAdr), length, data);
-   /* FPRMW in second datagram */
+   /* FPRMW 报文 */
    DCtE = htoell(*DCtime);
    DCtO = Nexx__adddatagram(port, &(port->txbuf[idx]), Nex_CMD_FRMW, idx, FALSE, DCrs, ECT_REG_DCSYSTIME, sizeof(DCtime), &DCtE);
    wkc = Nexx__srconfirm(port, idx, timeout);

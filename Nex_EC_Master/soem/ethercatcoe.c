@@ -1,14 +1,8 @@
-/*
- * Licensed under the GNU General Public License version 2 with exceptions. See
- * LICENSE file in the project root for full license information
- */
-
-/** \file
- * \brief
- * CAN over EtherCAT (CoE) module.
+/** 
+ * 
+ * EtherCAT COE SDO读写功能函数
  *
- * SDO read / write and SDO service functions
- */
+  */
 
 #include <stdio.h>
 #include <string.h>
@@ -55,36 +49,36 @@ typedef struct PACKED
 } Nex_SDOservicet;
 PACKED_END
 
-/** Report SDO error.
+/** 报告SDO错误
  *
- * @param[in]  context    = context struct
- * @param[in]  Slave      = Slave number
- * @param[in]  Index      = Index that generated error
- * @param[in]  SubIdx     = Subindex that generated error
- * @param[in]  AbortCode  = Abortcode, see EtherCAT documentation for list
+ * @param[in]  context    context结构体
+ * @param[in]  Slave      从站号
+ * @param[in]  Index      生成错误的索引
+ * @param[in]  SubIdx     生成错误的子索引
+ * @param[in]  AbortCode  参考EtherCAT文档
  */
 void Nexx__SDOerror(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 SubIdx, int32 AbortCode)
 {
    Nex_errort Ec;
 
-   memset(&Ec, 0, sizeof(Ec));
-   Ec.Time = osal_current_time();
-   Ec.Slave = Slave;
-   Ec.Index = Index;
-   Ec.SubIdx = SubIdx;
-   *(context->ecaterror) = TRUE;
-   Ec.Etype = Nex_ERR_TYPE_SDO_ERROR;
-   Ec.AbortCode = AbortCode;
-   Nexx__pusherror(context, &Ec);
+   memset(&Ec, 0, sizeof(Ec));//清零
+   Ec.Time = osal_current_time();//得到时间
+   Ec.Slave = Slave;//发生错误的从站号
+   Ec.Index = Index;//发生错误的索引
+   Ec.SubIdx = SubIdx;//发生错误的子索引
+   *(context->ecaterror) = TRUE;//发生错的标志置位
+   Ec.Etype = Nex_ERR_TYPE_SDO_ERROR;//错误类型
+   Ec.AbortCode = AbortCode;//错误代码
+   Nexx__pusherror(context, &Ec);//推送错误信息
 }
 
-/** Report SDO info error
+/** 报告SDOINFO错误
  *
- * @param[in]  context    = context struct
- * @param[in]  Slave      = Slave number
- * @param[in]  Index      = Index that generated error
- * @param[in]  SubIdx     = Subindex that generated error
- * @param[in]  AbortCode  = Abortcode, see EtherCAT documentation for list
+ * @param[in]  context    context结构体
+ * @param[in]  Slave      从站号
+ * @param[in]  Index      索引号
+ * @param[in]  SubIdx     子索引
+ * @param[in]  AbortCode  错误代码参详EtherCAT手册
  */
 static void Nexx__SDOinfoerror(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 SubIdx, int32 AbortCode)
 {
@@ -100,22 +94,22 @@ static void Nexx__SDOinfoerror(Nexx__contextt *context, uint16 Slave, uint16 Ind
    Nexx__pusherror(context, &Ec);
 }
 
-/** CoE SDO read, blocking. Single subindex or Complete Access.
+/** CoE SDO读取， 单个子索引或完全访问。
  *
- * Only a "normal" upload request is issued. If the requested parameter is <= 4bytes
- * then a "expedited" response is returned, otherwise a "normal" response. If a "normal"
- * response is larger than the mailbox size then the response is segmented. The function
- * will combine all segments and copy them to the parameter buffer.
+ *仅发出“正常”上传请求。 如果请求的参数 <= 4bytes
+ *然后返回“加急”响应，否则返回“正常”响应。 如果是“正常”
+ *响应大于邮箱大小，然后响应被分段。 
+ *功能将组合所有段并将它们复制到参数缓冲区。
  *
- * @param[in]  context    = context struct
- * @param[in]  slave      = Slave number
- * @param[in]  index      = Index to read
- * @param[in]  subindex   = Subindex to read, must be 0 or 1 if CA is used.
- * @param[in]  CA         = FALSE = single subindex. TRUE = Complete Access, all subindexes read.
- * @param[in,out] psize   = Size in bytes of parameter buffer, returns bytes read from SDO.
- * @param[out] p          = Pointer to parameter buffer
- * @param[in]  timeout    = Timeout in us, standard is Nex_TIMEOUTRXM
- * @return Workcounter from last slave response
+ * @param[in]  context    context结构体
+ * @param[in]  slave      从站号码
+ * @param[in]  index      索引号
+ * @param[in]  subindex   子索引, 如果CA被使用则必须为0或者1
+ * @param[in]  CA         FALSE 单个子索引. TRUE 完全访问,所有的子索引都被读
+ * @param[in,out] psize   以字节为单位的缓冲区大小 返回从SDO读取的字节数
+ * @param[out] p          指向参数缓冲区的指针
+ * @param[in]  timeout    溢出时间 Nex_TIMEOUTRXM us
+ * @return 最后一个从站的WKC
  */
 int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 subindex,
                boolean CA, int *psize, void *p, int timeout)
