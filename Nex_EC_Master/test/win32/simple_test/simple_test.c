@@ -26,6 +26,8 @@ volatile int wkc;
 volatile int rtcnt;
 boolean inOP;
 uint8 currentgroup = 0;
+drivercontrol_t* DriverControl;
+driverstatus_t*   DriverStatus;
 
 /* most basic RT thread for process data, just does IO transfer */
 void CALLBACK RTthread(UINT uTimerID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1,  DWORD_PTR dw2)
@@ -165,10 +167,13 @@ void mastersetup(char *ifname)
          nex_send_processdata();
          nex_receive_processdata(NEX_TIMEOUTRET);
 
+		 DriverControl = (drivercontrol_t*)(nex_slave[0].outputs);
+		 DriverStatus = (driverstatus_t*)(nex_slave[0].inputs);
+
          /* start RT thread as periodic MM timer */
          mmResult = timeSetEvent(8, 0, RTthread, 0, TIME_PERIODIC);
 
-         /* request OP state for all slaves */
+		 /* request OP state for all slaves */
          nex_writestate(0);
          chk = 40;
          /* wait for all slaves to reach OP state */

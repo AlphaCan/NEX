@@ -55,6 +55,29 @@ int nex_LRD(uint32 LogAdr, uint16 length, void *data, int timeout);
 int nex_LWR(uint32 LogAdr, uint16 length, void *data, int timeout);
 int nex_LRWDC(uint32 LogAdr, uint16 length, void *data, uint16 DCrs, int64 *DCtime, int timeout);
 #endif
+PACKED_BEGIN
+typedef struct PACKED
+{
+	uint16 KeyWords;
+	uint32 TargetPosition;
+	uint16 TouchProbeControlWords;
+}drivercontrol_t;
+PACKED_END
+
+PACKED_BEGIN
+typedef struct PACKED
+{
+	uint16 ErrorNumber;
+	uint16 StatusWords;
+	uint8  OperationMode;
+	uint32 ActualPosition;
+	uint16 TouchProbeStatusWords;
+	uint32 TouchProbeData1;
+	uint32 IOStatus;
+
+}driverstatus_t;
+PACKED_END
+
 
 #ifdef __cplusplus
 }
