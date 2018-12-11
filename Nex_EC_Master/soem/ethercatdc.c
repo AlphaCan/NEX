@@ -32,7 +32,7 @@
  * @param [in] CyclTime         Cycltime in ns.
  * @param [in] CyclShift        CyclShift in ns.
  */
-void Nexx__dcsync0(Nexx__contextt *context, uint16 slave, boolean act, uint32 CyclTime, int32 CyclShift)
+void nexx_dcsync0(nexx_contextt *context, uint16 slave, boolean act, uint32 CyclTime, int32 CyclShift)
 {
    uint8 h, RA;
    uint16 slaveh;
@@ -43,15 +43,15 @@ void Nexx__dcsync0(Nexx__contextt *context, uint16 slave, boolean act, uint32 Cy
    RA = 0;
 
    /* stop cyclic operation, ready for next trigger */
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCSYNCACT, sizeof(RA), &RA, Nex_TIMEOUTRET);
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCSYNCACT, sizeof(RA), &RA, NEX_TIMEOUTRET);
    if (act)
    {
        RA = 1 + 2;    /* act cyclic operation and sync0, sync1 deactivated */
    }
    h = 0;
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCCUC, sizeof(h), &h, Nex_TIMEOUTRET); /* write access to ethercat */
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCCUC, sizeof(h), &h, NEX_TIMEOUTRET); /* write access to ethercat */
    t1 = 0;
-   (void)Nexx__FPRD(context->port, slaveh, ECT_REG_DCSYSTIME, sizeof(t1), &t1, Nex_TIMEOUTRET); /* read local time of slave */
+   (void)nexx_FPRD(context->port, slaveh, ECT_REG_DCSYSTIME, sizeof(t1), &t1, NEX_TIMEOUTRET); /* read local time of slave */
    t1 = etohll(t1);
 
    /* Calculate first trigger time, always a whole multiple of CyclTime rounded up
@@ -68,12 +68,12 @@ void Nexx__dcsync0(Nexx__contextt *context, uint16 slave, boolean act, uint32 Cy
       /* first trigger at T1 + CyclTime + SyncDelay + CyclShift in ns */
    }
    t = htoell(t);
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCSTART0, sizeof(t), &t, Nex_TIMEOUTRET); /* SYNC0 start time */
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCSTART0, sizeof(t), &t, NEX_TIMEOUTRET); /* SYNC0 start time */
    tc = htoel(CyclTime);
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCCYCLE0, sizeof(tc), &tc, Nex_TIMEOUTRET); /* SYNC0 cycle time */
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCSYNCACT, sizeof(RA), &RA, Nex_TIMEOUTRET); /* activate cyclic operation */
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCCYCLE0, sizeof(tc), &tc, NEX_TIMEOUTRET); /* SYNC0 cycle time */
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCSYNCACT, sizeof(RA), &RA, NEX_TIMEOUTRET); /* activate cyclic operation */
 
-    // update Nex_slave state
+    // update nex_slave state
     context->slavelist[slave].DCactive = (uint8)act;
     context->slavelist[slave].DCshift = CyclShift;
     context->slavelist[slave].DCcycle = CyclTime;
@@ -91,7 +91,7 @@ void Nexx__dcsync0(Nexx__contextt *context, uint16 slave, boolean act, uint32 Cy
                                 as SYNC0.
  * @param [in] CyclShift        CyclShift in ns.
  */
-void Nexx__dcsync01(Nexx__contextt *context, uint16 slave, boolean act, uint32 CyclTime0, uint32 CyclTime1, int32 CyclShift)
+void nexx_dcsync01(nexx_contextt *context, uint16 slave, boolean act, uint32 CyclTime0, uint32 CyclTime1, int32 CyclShift)
 {
    uint8 h, RA;
    uint16 slaveh;
@@ -106,15 +106,15 @@ void Nexx__dcsync01(Nexx__contextt *context, uint16 slave, boolean act, uint32 C
    RA = 0;
 
    /* stop cyclic operation, ready for next trigger */
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCSYNCACT, sizeof(RA), &RA, Nex_TIMEOUTRET);
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCSYNCACT, sizeof(RA), &RA, NEX_TIMEOUTRET);
    if (act)
    {
       RA = 1 + 2 + 4;    /* act cyclic operation and sync0 + sync1 */
    }
    h = 0;
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCCUC, sizeof(h), &h, Nex_TIMEOUTRET); /* write access to ethercat */
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCCUC, sizeof(h), &h, NEX_TIMEOUTRET); /* write access to ethercat */
    t1 = 0;
-   (void)Nexx__FPRD(context->port, slaveh, ECT_REG_DCSYSTIME, sizeof(t1), &t1, Nex_TIMEOUTRET); /* read local time of slave */
+   (void)nexx_FPRD(context->port, slaveh, ECT_REG_DCSYSTIME, sizeof(t1), &t1, NEX_TIMEOUTRET); /* read local time of slave */
    t1 = etohll(t1);
 
    /* Calculate first trigger time, always a whole multiple of TrueCyclTime rounded up
@@ -131,21 +131,21 @@ void Nexx__dcsync01(Nexx__contextt *context, uint16 slave, boolean act, uint32 C
       /* first trigger at T1 + CyclTime + SyncDelay + CyclShift in ns */
    }
    t = htoell(t);
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCSTART0, sizeof(t), &t, Nex_TIMEOUTRET); /* SYNC0 start time */
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCSTART0, sizeof(t), &t, NEX_TIMEOUTRET); /* SYNC0 start time */
    tc = htoel(CyclTime0);
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCCYCLE0, sizeof(tc), &tc, Nex_TIMEOUTRET); /* SYNC0 cycle time */
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCCYCLE0, sizeof(tc), &tc, NEX_TIMEOUTRET); /* SYNC0 cycle time */
    tc = htoel(CyclTime1);
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCCYCLE1, sizeof(tc), &tc, Nex_TIMEOUTRET); /* SYNC1 cycle time */
-   (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCSYNCACT, sizeof(RA), &RA, Nex_TIMEOUTRET); /* activate cyclic operation */
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCCYCLE1, sizeof(tc), &tc, NEX_TIMEOUTRET); /* SYNC1 cycle time */
+   (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCSYNCACT, sizeof(RA), &RA, NEX_TIMEOUTRET); /* activate cyclic operation */
 
-    // update Nex_slave state
+    // update nex_slave state
     context->slavelist[slave].DCactive = (uint8)act;
     context->slavelist[slave].DCshift = CyclShift;
     context->slavelist[slave].DCcycle = CyclTime0;
 }
 
 /* latched port time of slave */
-static int32 Nexx__porttime(Nexx__contextt *context, uint16 slave, uint8 port)
+static int32 nexx_porttime(nexx_contextt *context, uint16 slave, uint8 port)
 {
    int32 ts;
    switch (port)
@@ -170,7 +170,7 @@ static int32 Nexx__porttime(Nexx__contextt *context, uint16 slave, uint8 port)
 }
 
 /* calculate previous active port of a slave */
-static uint8 Nexx__prevport(Nexx__contextt *context, uint16 slave, uint8 port)
+static uint8 nexx_prevport(nexx_contextt *context, uint16 slave, uint8 port)
 {
    uint8 pport = port;
    uint8 aport = context->slavelist[slave].activeports;
@@ -213,7 +213,7 @@ static uint8 Nexx__prevport(Nexx__contextt *context, uint16 slave, uint8 port)
 }
 
 /* search unconsumed ports in parent, consume and return first open port */
-static uint8 Nexx__parentport(Nexx__contextt *context, uint16 parent)
+static uint8 nexx_parentport(nexx_contextt *context, uint16 parent)
 {
    uint8 parentport = 0;
    uint8 b;
@@ -249,7 +249,7 @@ static uint8 Nexx__parentport(Nexx__contextt *context, uint16 parent)
  * @param[in]  context        = context struct
  * @return boolean if slaves are found with DC
  */
-boolean Nexx__configdc(Nexx__contextt *context)
+boolean nexx_configdc(nexx_contextt *context)
 {
    uint16 i, slaveh, parent, child;
    uint16 parenthold = 0;
@@ -260,14 +260,14 @@ boolean Nexx__configdc(Nexx__contextt *context)
    int8 nlist;
    int8 plist[4];
    int32 tlist[4];
-   Nex_timet mastertime;
+   nex_timet mastertime;
    uint64 mastertime64;
 
    context->slavelist[0].hasdc = FALSE;
    context->grouplist[0].hasdc = FALSE;
    ht = 0;
 
-   Nexx__BWR(context->port, 0, ECT_REG_DCTIME0, sizeof(ht), &ht, Nex_TIMEOUTRET);  /* latch DCrecvTimeA of all slaves */
+   nexx_BWR(context->port, 0, ECT_REG_DCTIME0, sizeof(ht), &ht, NEX_TIMEOUTRET);  /* latch DCrecvTimeA of all slaves */
    mastertime = osal_current_time();
    mastertime.sec -= 946684800UL;  /* EtherCAT uses 2000-01-01 as epoch start instead of 1970-01-01 */
    mastertime64 = (((uint64)mastertime.sec * 1000000) + (uint64)mastertime.usec) * 1000;
@@ -293,19 +293,19 @@ boolean Nexx__configdc(Nexx__contextt *context)
          parenthold = 0;
          prevDCslave = i;
          slaveh = context->slavelist[i].configadr;
-         (void)Nexx__FPRD(context->port, slaveh, ECT_REG_DCTIME0, sizeof(ht), &ht, Nex_TIMEOUTRET);
+         (void)nexx_FPRD(context->port, slaveh, ECT_REG_DCTIME0, sizeof(ht), &ht, NEX_TIMEOUTRET);
          context->slavelist[i].DCrtA = etohl(ht);
          /* 64bit latched DCrecvTimeA of each specific slave */
-         (void)Nexx__FPRD(context->port, slaveh, ECT_REG_DCSOF, sizeof(hrt), &hrt, Nex_TIMEOUTRET);
+         (void)nexx_FPRD(context->port, slaveh, ECT_REG_DCSOF, sizeof(hrt), &hrt, NEX_TIMEOUTRET);
          /* use it as offset in order to set local time around 0 + mastertime */
          hrt = htoell(-etohll(hrt) + mastertime64);
          /* save it in the offset register */
-         (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCSYSOFFSET, sizeof(hrt), &hrt, Nex_TIMEOUTRET);
-         (void)Nexx__FPRD(context->port, slaveh, ECT_REG_DCTIME1, sizeof(ht), &ht, Nex_TIMEOUTRET);
+         (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCSYSOFFSET, sizeof(hrt), &hrt, NEX_TIMEOUTRET);
+         (void)nexx_FPRD(context->port, slaveh, ECT_REG_DCTIME1, sizeof(ht), &ht, NEX_TIMEOUTRET);
          context->slavelist[i].DCrtB = etohl(ht);
-         (void)Nexx__FPRD(context->port, slaveh, ECT_REG_DCTIME2, sizeof(ht), &ht, Nex_TIMEOUTRET);
+         (void)nexx_FPRD(context->port, slaveh, ECT_REG_DCTIME2, sizeof(ht), &ht, NEX_TIMEOUTRET);
          context->slavelist[i].DCrtC = etohl(ht);
-         (void)Nexx__FPRD(context->port, slaveh, ECT_REG_DCTIME3, sizeof(ht), &ht, Nex_TIMEOUTRET);
+         (void)nexx_FPRD(context->port, slaveh, ECT_REG_DCTIME3, sizeof(ht), &ht, NEX_TIMEOUTRET);
          context->slavelist[i].DCrtD = etohl(ht);
 
          /* make list of active ports and their time stamps */
@@ -365,7 +365,7 @@ boolean Nexx__configdc(Nexx__contextt *context)
          if (parent > 0)
          {
             /* find port on parent this slave is connected to */
-            context->slavelist[i].parentport = Nexx__parentport(context, parent);
+            context->slavelist[i].parentport = nexx_parentport(context, parent);
             if (context->slavelist[parent].topology == 1)
             {
                context->slavelist[i].parentport = context->slavelist[parent].entryport;
@@ -376,16 +376,16 @@ boolean Nexx__configdc(Nexx__contextt *context)
             /* delta time of (parentport - 1) - parentport */
             /* note: order of ports is 0 - 3 - 1 -2 */
             /* non active ports are skipped */
-            dt3 = Nexx__porttime(context, parent, context->slavelist[i].parentport) -
-                  Nexx__porttime(context, parent,
-                    Nexx__prevport(context, parent, context->slavelist[i].parentport));
+            dt3 = nexx_porttime(context, parent, context->slavelist[i].parentport) -
+                  nexx_porttime(context, parent,
+                    nexx_prevport(context, parent, context->slavelist[i].parentport));
             /* current slave has children */
             /* those children's delays need to be subtracted */
             if (context->slavelist[i].topology > 1)
             {
-               dt1 = Nexx__porttime(context, i,
-                        Nexx__prevport(context, i, context->slavelist[i].entryport)) -
-                     Nexx__porttime(context, i, context->slavelist[i].entryport);
+               dt1 = nexx_porttime(context, i,
+                        nexx_prevport(context, i, context->slavelist[i].entryport)) -
+                     nexx_porttime(context, i, context->slavelist[i].entryport);
             }
             /* we are only interested in positive difference */
             if (dt1 > dt3) dt1 = -dt1;
@@ -393,9 +393,9 @@ boolean Nexx__configdc(Nexx__contextt *context)
             /* previous child's delays need to be added */
             if ((child - parent) > 1)
             {
-               dt2 = Nexx__porttime(context, parent,
-                        Nexx__prevport(context, parent, context->slavelist[i].parentport)) -
-                     Nexx__porttime(context, parent, context->slavelist[parent].entryport);
+               dt2 = nexx_porttime(context, parent,
+                        nexx_prevport(context, parent, context->slavelist[i].parentport)) -
+                     nexx_porttime(context, parent, context->slavelist[parent].entryport);
             }
             if (dt2 < 0) dt2 = -dt2;
 
@@ -405,7 +405,7 @@ boolean Nexx__configdc(Nexx__contextt *context)
                context->slavelist[parent].pdelay;
             ht = htoel(context->slavelist[i].pdelay);
             /* write propagation delay*/
-            (void)Nexx__FPWR(context->port, slaveh, ECT_REG_DCSYSDELAY, sizeof(ht), &ht, Nex_TIMEOUTRET);
+            (void)nexx_FPWR(context->port, slaveh, ECT_REG_DCSYSDELAY, sizeof(ht), &ht, NEX_TIMEOUTRET);
          }
       }
       else
@@ -421,7 +421,7 @@ boolean Nexx__configdc(Nexx__contextt *context)
          /* if branch has no DC slaves consume port on root parent */
          if ( parenthold && (context->slavelist[i].topology == 1))
          {
-            Nexx__parentport(context, parenthold);
+            nexx_parentport(context, parenthold);
             parenthold = 0;
          }
       }
@@ -430,19 +430,19 @@ boolean Nexx__configdc(Nexx__contextt *context)
    return context->slavelist[0].hasdc;
 }
 
-
-void Nex_dcsync0(uint16 slave, boolean act, uint32 CyclTime, int32 CyclShift)
+#ifdef NEX_VER1
+void nex_dcsync0(uint16 slave, boolean act, uint32 CyclTime, int32 CyclShift)
 {
-   Nexx__dcsync0(&Nexx__context, slave, act, CyclTime, CyclShift);
+   nexx_dcsync0(&nexx_context, slave, act, CyclTime, CyclShift);
 }
 
-void Nex_dcsync01(uint16 slave, boolean act, uint32 CyclTime0, uint32 CyclTime1, int32 CyclShift)
+void nex_dcsync01(uint16 slave, boolean act, uint32 CyclTime0, uint32 CyclTime1, int32 CyclShift)
 {
-   Nexx__dcsync01(&Nexx__context, slave, act, CyclTime0, CyclTime1, CyclShift);
+   nexx_dcsync01(&nexx_context, slave, act, CyclTime0, CyclTime1, CyclShift);
 }
 
-boolean Nex_configdc(void)
+boolean nex_configdc(void)
 {
-   return Nexx__configdc(&Nexx__context);
+   return nexx_configdc(&nexx_context);
 }
-
+#endif

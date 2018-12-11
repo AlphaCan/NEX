@@ -7,7 +7,7 @@
  * \brief
  * Configuration module for EtherCAT master.
  *
- * After successful initialisation with Nex_init() or Nex_init_redundant()
+ * After successful initialisation with nex_init() or nex_init_redundant()
  * the slaves can be auto configured with this module.
  */
 
@@ -23,26 +23,26 @@
 #include "ethercatconfig.h"
 
 // define if debug printf is needed
-//#define Nex_DEBUG
+//#define NEX_DEBUG
 
-#ifdef Nex_DEBUG
-#define Nex_PRINT printf
+#ifdef NEX_DEBUG
+#define NEX_PRINT printf
 #else
-#define Nex_PRINT(...) do {} while (0)
+#define NEX_PRINT(...) do {} while (0)
 #endif
 
 typedef struct
 {
    int thread_n;
    int running;
-   Nexx__contextt *context;
+   nexx_contextt *context;
    uint16 slave;
-} Nexx__mapt_t;
+} nexx_mapt_t;
 
-Nexx__mapt_t Nexx__mapt[Nex_MAX_MAPT];
-OSAL_THREAD_HANDLE Nexx__threadh[Nex_MAX_MAPT];
+nexx_mapt_t nexx_mapt[NEX_MAX_MAPT];
+OSAL_THREAD_HANDLE nexx_threadh[NEX_MAX_MAPT];
 
-
+#ifdef NEX_VER1
 /** Slave configuration structure */
 typedef const struct
 {
@@ -51,7 +51,7 @@ typedef const struct
    /** ID of slave */
    uint32           id;
    /** Readable name */
-   char             name[Nex_MAXNAME + 1];
+   char             name[NEX_MAXNAME + 1];
    /** Data type */
    uint8            Dtype;
    /** Input bits */
@@ -70,36 +70,59 @@ typedef const struct
    uint8            FM0ac;
    /** FMMU 1 activation */
    uint8            FM1ac;
-} Nex_configlist_t;
+} nex_configlist_t;
 
-
-
+#include "ethercatconfiglist.h"
+#endif
 
 /** standard SM0 flags configuration for mailbox slaves */
-#define Nex_DEFAULTMBXSM0  0x00010026
+#define NEX_DEFAULTMBXSM0  0x00010026
 /** standard SM1 flags configuration for mailbox slaves */
-#define Nex_DEFAULTMBXSM1  0x00010022
+#define NEX_DEFAULTMBXSM1  0x00010022
 /** standard SM0 flags configuration for digital output slaves */
-#define Nex_DEFAULTDOSM0   0x00010044
+#define NEX_DEFAULTDOSM0   0x00010044
 
+#ifdef NEX_VER1
+/** Find slave in standard configuration list nex_configlist[]
+ *
+ * @param[in] man      = manufacturer
+ * @param[in] id       = ID
+ * @return index in nex_configlist[] when found, otherwise 0
+ */
+/*
+int nex_findconfig( uint32 man, uint32 id)
+{
+   int i = 0;
 
+   do
+   {
+      i++;
+   } while ( (nex_configlist[i].man != NEX_CONFIGEND) &&
+           ((nex_configlist[i].man != man) || (nex_configlist[i].id != id)) );
+   if (nex_configlist[i].man == NEX_CONFIGEND)
+   {
+      i = 0;
+   }
+   return i;
+}*/
+#endif
 
-void Nexx__init_context(Nexx__contextt *context)
+void nexx_init_context(nexx_contextt *context)
 {
    int lp;
    *(context->slavecount) = 0;
-   /* clean Nex_slave array */
-   memset(context->slavelist, 0x00, sizeof(Nex_slavet) * context->maxslave);
-   memset(context->grouplist, 0x00, sizeof(Nex_groupt) * context->maxgroup);
+   /* clean nex_slave array */
+   memset(context->slavelist, 0x00, sizeof(nex_slavet) * context->maxslave);
+   memset(context->grouplist, 0x00, sizeof(nex_groupt) * context->maxgroup);
    /* clear slave eeprom cache, does not actually read any eeprom */
-   Nexx__siigetbyte(context, 0, Nex_MAXEEPBUF);
+   nexx_siigetbyte(context, 0, NEX_MAXEEPBUF);
    for(lp = 0; lp < context->maxgroup; lp++)
    {
       context->grouplist[lp].logstartaddr = lp << 16; /* default start address per group entry */
    }
 }
 
-int Nexx__detect_slaves(Nexx__contextt *context)
+int nexx_detect_slaves(nexx_contextt *context)
 {
    uint8  b;
    uint16 w;
@@ -108,65 +131,136 @@ int Nexx__detect_slaves(Nexx__contextt *context)
    /* make special pre-init register writes to enable MAC[1] local administered bit *
     * setting for old netX100 slaves */
    b = 0x00;
-   Nexx__BWR(context->port, 0x0000, ECT_REG_DLALIAS, sizeof(b), &b, Nex_TIMEOUTRET3);     /* Ignore Alias register */
-   b = Nex_STATE_INIT | Nex_STATE_ACK;
-   Nexx__BWR(context->port, 0x0000, ECT_REG_ALCTL, sizeof(b), &b, Nex_TIMEOUTRET3);       /* Reset all slaves to Init */
+   nexx_BWR(context->port, 0x0000, ECT_REG_DLALIAS, sizeof(b), &b, NEX_TIMEOUTRET3);     /* Ignore Alias register */
+   b = NEX_STATE_INIT | NEX_STATE_ACK;
+   nexx_BWR(context->port, 0x0000, ECT_REG_ALCTL, sizeof(b), &b, NEX_TIMEOUTRET3);       /* Reset all slaves to Init */
    /* netX100 should now be happy */
-   Nexx__BWR(context->port, 0x0000, ECT_REG_ALCTL, sizeof(b), &b, Nex_TIMEOUTRET3);       /* Reset all slaves to Init */
-   wkc = Nexx__BRD(context->port, 0x0000, ECT_REG_TYPE, sizeof(w), &w, Nex_TIMEOUTSAFE);  /* detect number of slaves */
+   nexx_BWR(context->port, 0x0000, ECT_REG_ALCTL, sizeof(b), &b, NEX_TIMEOUTRET3);       /* Reset all slaves to Init */
+   wkc = nexx_BRD(context->port, 0x0000, ECT_REG_TYPE, sizeof(w), &w, NEX_TIMEOUTSAFE);  /* detect number of slaves */
    if (wkc > 0)
    {
       /* this is strictly "less than" since the master is "slave 0" */
-      if (wkc < Nex_MAXSLAVE)
+      if (wkc < NEX_MAXSLAVE)
       {
          *(context->slavecount) = wkc;
       }
       else
       {
-         Nex_PRINT("Error: too many slaves on network: num_slaves=%d, Nex_MAXSLAVE=%d\n",
-               wkc, Nex_MAXSLAVE);
+         NEX_PRINT("Error: too many slaves on network: num_slaves=%d, NEX_MAXSLAVE=%d\n",
+               wkc, NEX_MAXSLAVE);
          return -2;
       }
    }
    return wkc;
 }
 
-static void Nexx__set_slaves_to_default(Nexx__contextt *context)
+static void nexx_set_slaves_to_default(nexx_contextt *context)
 {
    uint8 b;
    uint16 w;
    uint8 zbuf[64];
    memset(&zbuf, 0x00, sizeof(zbuf));
    b = 0x00;
-   Nexx__BWR(context->port, 0x0000, ECT_REG_DLPORT      , sizeof(b) , &b, Nex_TIMEOUTRET3);     /* deact loop manual */
+   nexx_BWR(context->port, 0x0000, ECT_REG_DLPORT      , sizeof(b) , &b, NEX_TIMEOUTRET3);     /* deact loop manual */
    w = htoes(0x0004);
-   Nexx__BWR(context->port, 0x0000, ECT_REG_IRQMASK     , sizeof(w) , &w, Nex_TIMEOUTRET3);     /* set IRQ mask */
-   Nexx__BWR(context->port, 0x0000, ECT_REG_RXERR       , 8         , &zbuf, Nex_TIMEOUTRET3);  /* reset CRC counters */
-   Nexx__BWR(context->port, 0x0000, ECT_REG_FMMU0       , 16 * 3    , &zbuf, Nex_TIMEOUTRET3);  /* reset FMMU's */
-   Nexx__BWR(context->port, 0x0000, ECT_REG_SM0         , 8 * 4     , &zbuf, Nex_TIMEOUTRET3);  /* reset SyncM */
+   nexx_BWR(context->port, 0x0000, ECT_REG_IRQMASK     , sizeof(w) , &w, NEX_TIMEOUTRET3);     /* set IRQ mask */
+   nexx_BWR(context->port, 0x0000, ECT_REG_RXERR       , 8         , &zbuf, NEX_TIMEOUTRET3);  /* reset CRC counters */
+   nexx_BWR(context->port, 0x0000, ECT_REG_FMMU0       , 16 * 3    , &zbuf, NEX_TIMEOUTRET3);  /* reset FMMU's */
+   nexx_BWR(context->port, 0x0000, ECT_REG_SM0         , 8 * 4     , &zbuf, NEX_TIMEOUTRET3);  /* reset SyncM */
    b = 0x00; 
-   Nexx__BWR(context->port, 0x0000, ECT_REG_DCSYNCACT   , sizeof(b) , &b, Nex_TIMEOUTRET3);     /* reset activation register */ 
-   Nexx__BWR(context->port, 0x0000, ECT_REG_DCSYSTIME   , 4         , &zbuf, Nex_TIMEOUTRET3);  /* reset system time+ofs */
+   nexx_BWR(context->port, 0x0000, ECT_REG_DCSYNCACT   , sizeof(b) , &b, NEX_TIMEOUTRET3);     /* reset activation register */ 
+   nexx_BWR(context->port, 0x0000, ECT_REG_DCSYSTIME   , 4         , &zbuf, NEX_TIMEOUTRET3);  /* reset system time+ofs */
    w = htoes(0x1000);
-   Nexx__BWR(context->port, 0x0000, ECT_REG_DCSPEEDCNT  , sizeof(w) , &w, Nex_TIMEOUTRET3);     /* DC speedstart */
+   nexx_BWR(context->port, 0x0000, ECT_REG_DCSPEEDCNT  , sizeof(w) , &w, NEX_TIMEOUTRET3);     /* DC speedstart */
    w = htoes(0x0c00);
-   Nexx__BWR(context->port, 0x0000, ECT_REG_DCTIMEFILT  , sizeof(w) , &w, Nex_TIMEOUTRET3);     /* DC filt expr */
+   nexx_BWR(context->port, 0x0000, ECT_REG_DCTIMEFILT  , sizeof(w) , &w, NEX_TIMEOUTRET3);     /* DC filt expr */
    b = 0x00;
-   Nexx__BWR(context->port, 0x0000, ECT_REG_DLALIAS     , sizeof(b) , &b, Nex_TIMEOUTRET3);     /* Ignore Alias register */
-   b = Nex_STATE_INIT | Nex_STATE_ACK;
-   Nexx__BWR(context->port, 0x0000, ECT_REG_ALCTL       , sizeof(b) , &b, Nex_TIMEOUTRET3);     /* Reset all slaves to Init */
+   nexx_BWR(context->port, 0x0000, ECT_REG_DLALIAS     , sizeof(b) , &b, NEX_TIMEOUTRET3);     /* Ignore Alias register */
+   b = NEX_STATE_INIT | NEX_STATE_ACK;
+   nexx_BWR(context->port, 0x0000, ECT_REG_ALCTL       , sizeof(b) , &b, NEX_TIMEOUTRET3);     /* Reset all slaves to Init */
    b = 2;
-   Nexx__BWR(context->port, 0x0000, ECT_REG_EEPCFG      , sizeof(b) , &b, Nex_TIMEOUTRET3);     /* force Eeprom from PDI */
+   nexx_BWR(context->port, 0x0000, ECT_REG_EEPCFG      , sizeof(b) , &b, NEX_TIMEOUTRET3);     /* force Eeprom from PDI */
    b = 0;
-   Nexx__BWR(context->port, 0x0000, ECT_REG_EEPCFG      , sizeof(b) , &b, Nex_TIMEOUTRET3);     /* set Eeprom to master */
+   nexx_BWR(context->port, 0x0000, ECT_REG_EEPCFG      , sizeof(b) , &b, NEX_TIMEOUTRET3);     /* set Eeprom to master */
 }
 
+/*
+#ifdef NEX_VER1
+static int nexx_config_from_table(nexx_contextt *context, uint16 slave)
+{
+   int cindex;
+   nex_slavet *csl;
 
+   csl = &(context->slavelist[slave]);
+   cindex = nex_findconfig( csl->eep_man, csl->eep_id );
+   csl->configindex= cindex;
+   / * slave found in configuration table ? * /
+   if (cindex)
+   {
+      csl->Dtype = nex_configlist[cindex].Dtype;
+      strcpy(csl->name ,nex_configlist[cindex].name);
+      csl->Ibits = nex_configlist[cindex].Ibits;
+      csl->Obits = nex_configlist[cindex].Obits;
+      if (csl->Obits)
+      {
+         csl->FMMU0func = 1;
+      }
+      if (csl->Ibits)
+      {
+         csl->FMMU1func = 2;
+      }
+      csl->FMMU[0].FMMUactive = nex_configlist[cindex].FM0ac;
+      csl->FMMU[1].FMMUactive = nex_configlist[cindex].FM1ac;
+      csl->SM[2].StartAddr = htoes(nex_configlist[cindex].SM2a);
+      csl->SM[2].SMflags = htoel(nex_configlist[cindex].SM2f);
+      / * simple (no mailbox) output slave found ? * /
+      if (csl->Obits && !csl->SM[2].StartAddr)
+      {
+         csl->SM[0].StartAddr = htoes(0x0f00);
+         csl->SM[0].SMlength = htoes((csl->Obits + 7) / 8);
+         csl->SM[0].SMflags = htoel(NEX_DEFAULTDOSM0);
+         csl->FMMU[0].FMMUactive = 1;
+         csl->FMMU[0].FMMUtype = 2;
+         csl->SMtype[0] = 3;
+      }
+      / * complex output slave * /
+      else
+      {
+         csl->SM[2].SMlength = htoes((csl->Obits + 7) / 8);
+         csl->SMtype[2] = 3;
+      }
+      csl->SM[3].StartAddr = htoes(nex_configlist[cindex].SM3a);
+      csl->SM[3].SMflags = htoel(nex_configlist[cindex].SM3f);
+      / * simple (no mailbox) input slave found ? * /
+      if (csl->Ibits && !csl->SM[3].StartAddr)
+      {
+         csl->SM[1].StartAddr = htoes(0x1000);
+         csl->SM[1].SMlength = htoes((csl->Ibits + 7) / 8);
+         csl->SM[1].SMflags = htoel(0x00000000);
+         csl->FMMU[1].FMMUactive = 1;
+         csl->FMMU[1].FMMUtype = 1;
+         csl->SMtype[1] = 4;
+      }
+      / * complex input slave * /
+      else
+      {
+         csl->SM[3].SMlength = htoes((csl->Ibits + 7) / 8);
+         csl->SMtype[3] = 4;
+      }
+   }
+   return cindex;
+}
+#else
+static int nexx_config_from_table(nexx_contextt *context, uint16 slave)
+{
+   return 0;
+}
+#endif*/
 
 /* If slave has SII and same slave ID done before, use previous data.
  * This is safe because SII is constant for same slave ID.
  */
-static int Nexx__lookup_prev_sii(Nexx__contextt *context, uint16 slave)
+static int nexx_lookup_prev_sii(nexx_contextt *context, uint16 slave)
 {
    int i, nSM;
    if ((slave > 1) && (*(context->slavecount) > 0))
@@ -192,8 +286,8 @@ static int Nexx__lookup_prev_sii(Nexx__contextt *context, uint16 slave)
          }
          context->slavelist[slave].Ebuscurrent = context->slavelist[i].Ebuscurrent;
          context->slavelist[0].Ebuscurrent += context->slavelist[slave].Ebuscurrent;
-         memcpy(context->slavelist[slave].name, context->slavelist[i].name, Nex_MAXNAME + 1);
-         for( nSM=0 ; nSM < Nex_MAXSM ; nSM++ )
+         memcpy(context->slavelist[slave].name, context->slavelist[i].name, NEX_MAXNAME + 1);
+         for( nSM=0 ; nSM < NEX_MAXSM ; nSM++ )
          {
             context->slavelist[slave].SM[nSM].StartAddr = context->slavelist[i].SM[nSM].StartAddr;
             context->slavelist[slave].SM[nSM].SMlength  = context->slavelist[i].SM[nSM].SMlength;
@@ -203,7 +297,7 @@ static int Nexx__lookup_prev_sii(Nexx__contextt *context, uint16 slave)
          context->slavelist[slave].FMMU1func = context->slavelist[i].FMMU1func;
          context->slavelist[slave].FMMU2func = context->slavelist[i].FMMU2func;
          context->slavelist[slave].FMMU3func = context->slavelist[i].FMMU3func;
-         Nex_PRINT("Copy SII slave %d from %d.\n", slave, i);
+         NEX_PRINT("Copy SII slave %d from %d.\n", slave, i);
          return 1;
       }
    }
@@ -216,8 +310,7 @@ static int Nexx__lookup_prev_sii(Nexx__contextt *context, uint16 slave)
  * @param[in] usetable     = TRUE when using configtable to init slaves, FALSE otherwise
  * @return Workcounter of slave discover datagram = number of slaves found
  */
-//int Nexx__config_init(Nexx__contextt *context, uint8 usetable)
-int Nexx__config_init(Nexx__contextt *context)
+int nexx_config_init(nexx_contextt *context)
 {
    uint16 slave, ADPh, configadr, ssigen;
    uint16 topology, estat;
@@ -227,20 +320,20 @@ int Nexx__config_init(Nexx__contextt *context)
    uint32 eedat;
    int wkc, cindex, nSM;
 
-//   Nex_PRINT("Nex_config_init %d\n",usetable);
-   Nexx__init_context(context);
-   wkc = Nexx__detect_slaves(context);
+//   NEX_PRINT("nex_config_init %d\n",usetable);
+   nexx_init_context(context);
+   wkc = nexx_detect_slaves(context);
    if (wkc > 0)
    {
-      Nexx__set_slaves_to_default(context);
+      nexx_set_slaves_to_default(context);
       for (slave = 1; slave <= *(context->slavecount); slave++)
       {
          ADPh = (uint16)(1 - slave);
          context->slavelist[slave].Itype =
-            etohs(Nexx__APRDw(context->port, ADPh, ECT_REG_PDICTL, Nex_TIMEOUTRET3)); /* read interface type of slave */
+            etohs(nexx_APRDw(context->port, ADPh, ECT_REG_PDICTL, NEX_TIMEOUTRET3)); /* read interface type of slave */
          /* a node offset is used to improve readibility of network frames */
          /* this has no impact on the number of addressable slaves (auto wrap around) */
-         Nexx__APWRw(context->port, ADPh, ECT_REG_STADR, htoes(slave + Nex_NODEOFFSET) , Nex_TIMEOUTRET3); /* set node address of slave */
+         nexx_APWRw(context->port, ADPh, ECT_REG_STADR, htoes(slave + NEX_NODEOFFSET) , NEX_TIMEOUTRET3); /* set node address of slave */
          if (slave == 1)
          {
             b = 1; /* kill non ecat frames for first slave */
@@ -249,62 +342,62 @@ int Nexx__config_init(Nexx__contextt *context)
          {
             b = 0; /* pass all frames for following slaves */
          }
-         Nexx__APWRw(context->port, ADPh, ECT_REG_DLCTL, htoes(b), Nex_TIMEOUTRET3); /* set non ecat frame behaviour */
-         configadr = etohs(Nexx__APRDw(context->port, ADPh, ECT_REG_STADR, Nex_TIMEOUTRET3));
+         nexx_APWRw(context->port, ADPh, ECT_REG_DLCTL, htoes(b), NEX_TIMEOUTRET3); /* set non ecat frame behaviour */
+         configadr = etohs(nexx_APRDw(context->port, ADPh, ECT_REG_STADR, NEX_TIMEOUTRET3));
          context->slavelist[slave].configadr = configadr;
-         Nexx__FPRD(context->port, configadr, ECT_REG_ALIAS, sizeof(aliasadr), &aliasadr, Nex_TIMEOUTRET3);
+         nexx_FPRD(context->port, configadr, ECT_REG_ALIAS, sizeof(aliasadr), &aliasadr, NEX_TIMEOUTRET3);
          context->slavelist[slave].aliasadr = etohs(aliasadr);
-         Nexx__FPRD(context->port, configadr, ECT_REG_EEPSTAT, sizeof(estat), &estat, Nex_TIMEOUTRET3);
+         nexx_FPRD(context->port, configadr, ECT_REG_EEPSTAT, sizeof(estat), &estat, NEX_TIMEOUTRET3);
          estat = etohs(estat);
-         if (estat & Nex_ESTAT_R64) /* check if slave can read 8 byte chunks */
+         if (estat & NEX_ESTAT_R64) /* check if slave can read 8 byte chunks */
          {
             context->slavelist[slave].eep_8byte = 1;
          }
-         Nexx__readeeprom1(context, slave, ECT_SII_MANUF); /* Manuf */
+         nexx_readeeprom1(context, slave, ECT_SII_MANUF); /* Manuf */
       }
       for (slave = 1; slave <= *(context->slavecount); slave++)
       {
          context->slavelist[slave].eep_man =
-            etohl(Nexx__readeeprom2(context, slave, Nex_TIMEOUTEEP)); /* Manuf */
-         Nexx__readeeprom1(context, slave, ECT_SII_ID); /* ID */
+            etohl(nexx_readeeprom2(context, slave, NEX_TIMEOUTEEP)); /* Manuf */
+         nexx_readeeprom1(context, slave, ECT_SII_ID); /* ID */
       }
       for (slave = 1; slave <= *(context->slavecount); slave++)
       {
          context->slavelist[slave].eep_id =
-            etohl(Nexx__readeeprom2(context, slave, Nex_TIMEOUTEEP)); /* ID */
-         Nexx__readeeprom1(context, slave, ECT_SII_REV); /* revision */
+            etohl(nexx_readeeprom2(context, slave, NEX_TIMEOUTEEP)); /* ID */
+         nexx_readeeprom1(context, slave, ECT_SII_REV); /* revision */
       }
       for (slave = 1; slave <= *(context->slavecount); slave++)
       {
          context->slavelist[slave].eep_rev =
-            etohl(Nexx__readeeprom2(context, slave, Nex_TIMEOUTEEP)); /* revision */
-         Nexx__readeeprom1(context, slave, ECT_SII_RXMBXADR); /* write mailbox address + mailboxsize */
+            etohl(nexx_readeeprom2(context, slave, NEX_TIMEOUTEEP)); /* revision */
+         nexx_readeeprom1(context, slave, ECT_SII_RXMBXADR); /* write mailbox address + mailboxsize */
       }
       for (slave = 1; slave <= *(context->slavecount); slave++)
       {
-         eedat = etohl(Nexx__readeeprom2(context, slave, Nex_TIMEOUTEEP)); /* write mailbox address and mailboxsize */
+         eedat = etohl(nexx_readeeprom2(context, slave, NEX_TIMEOUTEEP)); /* write mailbox address and mailboxsize */
          context->slavelist[slave].mbx_wo = (uint16)LO_WORD(eedat);
          context->slavelist[slave].mbx_l = (uint16)HI_WORD(eedat);
          if (context->slavelist[slave].mbx_l > 0)
          {
-            Nexx__readeeprom1(context, slave, ECT_SII_TXMBXADR); /* read mailbox offset */
+            nexx_readeeprom1(context, slave, ECT_SII_TXMBXADR); /* read mailbox offset */
          }
       }
       for (slave = 1; slave <= *(context->slavecount); slave++)
       {
          if (context->slavelist[slave].mbx_l > 0)
          {
-            eedat = etohl(Nexx__readeeprom2(context, slave, Nex_TIMEOUTEEP)); /* read mailbox offset */
+            eedat = etohl(nexx_readeeprom2(context, slave, NEX_TIMEOUTEEP)); /* read mailbox offset */
             context->slavelist[slave].mbx_ro = (uint16)LO_WORD(eedat); /* read mailbox offset */
             context->slavelist[slave].mbx_rl = (uint16)HI_WORD(eedat); /*read mailbox length */
             if (context->slavelist[slave].mbx_rl == 0)
             {
                context->slavelist[slave].mbx_rl = context->slavelist[slave].mbx_l;
             }
-            Nexx__readeeprom1(context, slave, ECT_SII_MBXPROTO);
+            nexx_readeeprom1(context, slave, ECT_SII_MBXPROTO);
          }
          configadr = context->slavelist[slave].configadr;
-         if ((etohs(Nexx__FPRDw(context->port, configadr, ECT_REG_ESCSUP, Nex_TIMEOUTRET3)) & 0x04) > 0)  /* Support DC? */
+         if ((etohs(nexx_FPRDw(context->port, configadr, ECT_REG_ESCSUP, NEX_TIMEOUTRET3)) & 0x04) > 0)  /* Support DC? */
          {
             context->slavelist[slave].hasdc = TRUE;
          }
@@ -312,7 +405,7 @@ int Nexx__config_init(Nexx__contextt *context)
          {
             context->slavelist[slave].hasdc = FALSE;
          }
-         topology = etohs(Nexx__FPRDw(context->port, configadr, ECT_REG_DLSTAT, Nex_TIMEOUTRET3)); /* extract topology from DL status */
+         topology = etohs(nexx_FPRDw(context->port, configadr, ECT_REG_DLSTAT, NEX_TIMEOUTRET3)); /* extract topology from DL status */
          h = 0;
          b = 0;
          if ((topology & 0x0300) == 0x0200) /* port0 open and communication established */
@@ -337,7 +430,7 @@ int Nexx__config_init(Nexx__contextt *context)
          }
          /* ptype = Physical type*/
          context->slavelist[slave].ptype =
-            LO_BYTE(etohs(Nexx__FPRDw(context->port, configadr, ECT_REG_PORTDES, Nex_TIMEOUTRET3)));
+            LO_BYTE(etohs(nexx_FPRDw(context->port, configadr, ECT_REG_PORTDES, NEX_TIMEOUTRET3)));
          context->slavelist[slave].topology = h;
          context->slavelist[slave].activeports = b;
          /* 0=no links, not possible             */
@@ -376,7 +469,7 @@ int Nexx__config_init(Nexx__contextt *context)
             }
             while (slavec > 0);
          }
-         (void)Nexx__statecheck(context, slave, Nex_STATE_INIT,  Nex_TIMEOUTSTATE); //* check state change Init */
+         (void)nexx_statecheck(context, slave, NEX_STATE_INIT,  NEX_TIMEOUTSTATE); //* check state change Init */
 
          /* set default mailbox configuration if slave has mailbox */
          if (context->slavelist[slave].mbx_l>0)
@@ -387,43 +480,43 @@ int Nexx__config_init(Nexx__contextt *context)
             context->slavelist[slave].SMtype[3] = 4;
             context->slavelist[slave].SM[0].StartAddr = htoes(context->slavelist[slave].mbx_wo);
             context->slavelist[slave].SM[0].SMlength = htoes(context->slavelist[slave].mbx_l);
-            context->slavelist[slave].SM[0].SMflags = htoel(Nex_DEFAULTMBXSM0);
+            context->slavelist[slave].SM[0].SMflags = htoel(NEX_DEFAULTMBXSM0);
             context->slavelist[slave].SM[1].StartAddr = htoes(context->slavelist[slave].mbx_ro);
             context->slavelist[slave].SM[1].SMlength = htoes(context->slavelist[slave].mbx_rl);
-            context->slavelist[slave].SM[1].SMflags = htoel(Nex_DEFAULTMBXSM1);
+            context->slavelist[slave].SM[1].SMflags = htoel(NEX_DEFAULTMBXSM1);
             context->slavelist[slave].mbx_proto =
-               Nexx__readeeprom2(context, slave, Nex_TIMEOUTEEP);
+               nexx_readeeprom2(context, slave, NEX_TIMEOUTEEP);
          }
          cindex = 0;
          /* use configuration table ? */
- //        if (usetable == 1)
-  //       {
- //           cindex = Nexx__config_from_table(context, slave);
- //        }
-         /* slave not in configuration table, find out via SII */
-         if (!cindex && !Nexx__lookup_prev_sii(context, slave))
+         /*if (usetable == 1)
          {
-            ssigen = Nexx__siifind(context, slave, ECT_SII_GENERAL);
+            cindex = nexx_config_from_table(context, slave);
+         }*/
+         /* slave not in configuration table, find out via SII */
+         if (!cindex && !nexx_lookup_prev_sii(context, slave))
+         {
+            ssigen = nexx_siifind(context, slave, ECT_SII_GENERAL);
             /* SII general section */
             if (ssigen)
             {
-               context->slavelist[slave].CoEdetails = Nexx__siigetbyte(context, slave, ssigen + 0x07);
-               context->slavelist[slave].FoEdetails = Nexx__siigetbyte(context, slave, ssigen + 0x08);
-               context->slavelist[slave].EoEdetails = Nexx__siigetbyte(context, slave, ssigen + 0x09);
-               context->slavelist[slave].SoEdetails = Nexx__siigetbyte(context, slave, ssigen + 0x0a);
-               if((Nexx__siigetbyte(context, slave, ssigen + 0x0d) & 0x02) > 0)
+               context->slavelist[slave].CoEdetails = nexx_siigetbyte(context, slave, ssigen + 0x07);
+               context->slavelist[slave].FoEdetails = nexx_siigetbyte(context, slave, ssigen + 0x08);
+               context->slavelist[slave].EoEdetails = nexx_siigetbyte(context, slave, ssigen + 0x09);
+               context->slavelist[slave].SoEdetails = nexx_siigetbyte(context, slave, ssigen + 0x0a);
+               if((nexx_siigetbyte(context, slave, ssigen + 0x0d) & 0x02) > 0)
                {
                   context->slavelist[slave].blockLRW = 1;
                   context->slavelist[0].blockLRW++;
                }
-               context->slavelist[slave].Ebuscurrent = Nexx__siigetbyte(context, slave, ssigen + 0x0e);
-               context->slavelist[slave].Ebuscurrent += Nexx__siigetbyte(context, slave, ssigen + 0x0f) << 8;
+               context->slavelist[slave].Ebuscurrent = nexx_siigetbyte(context, slave, ssigen + 0x0e);
+               context->slavelist[slave].Ebuscurrent += nexx_siigetbyte(context, slave, ssigen + 0x0f) << 8;
                context->slavelist[0].Ebuscurrent += context->slavelist[slave].Ebuscurrent;
             }
             /* SII strings section */
-            if (Nexx__siifind(context, slave, ECT_SII_STRING) > 0)
+            if (nexx_siifind(context, slave, ECT_SII_STRING) > 0)
             {
-               Nexx__siistring(context, context->slavelist[slave].name, slave, 1);
+               nexx_siistring(context, context->slavelist[slave].name, slave, 1);
             }
             /* no name for slave found, use constructed name */
             else
@@ -433,7 +526,7 @@ int Nexx__config_init(Nexx__contextt *context)
                        (unsigned int)context->slavelist[slave].eep_id);
             }
             /* SII SM section */
-            nSM = Nexx__siiSM(context, slave, context->eepSM);
+            nSM = nexx_siiSM(context, slave, context->eepSM);
             if (nSM>0)
             {
                context->slavelist[slave].SM[0].StartAddr = htoes(context->eepSM->PhStart);
@@ -441,7 +534,7 @@ int Nexx__config_init(Nexx__contextt *context)
                context->slavelist[slave].SM[0].SMflags =
                   htoel((context->eepSM->Creg) + (context->eepSM->Activate << 16));
                SMc = 1;
-               while ((SMc < Nex_MAXSM) &&  Nexx__siiSMnext(context, slave, context->eepSM, SMc))
+               while ((SMc < NEX_MAXSM) &&  nexx_siiSMnext(context, slave, context->eepSM, SMc))
                {
                   context->slavelist[slave].SM[SMc].StartAddr = htoes(context->eepSM->PhStart);
                   context->slavelist[slave].SM[SMc].SMlength = htoes(context->eepSM->Plength);
@@ -451,7 +544,7 @@ int Nexx__config_init(Nexx__contextt *context)
                }
             }
             /* SII FMMU section */
-            if (Nexx__siiFMMU(context, slave, context->eepFMMU))
+            if (nexx_siiFMMU(context, slave, context->eepFMMU))
             {
                if (context->eepFMMU->FMMU0 !=0xff)
                {
@@ -476,29 +569,29 @@ int Nexx__config_init(Nexx__contextt *context)
          {
             if (context->slavelist[slave].SM[0].StartAddr == 0x0000) /* should never happen */
             {
-               Nex_PRINT("Slave %d has no proper mailbox in configuration, try default.\n", slave);
+               NEX_PRINT("Slave %d has no proper mailbox in configuration, try default.\n", slave);
                context->slavelist[slave].SM[0].StartAddr = htoes(0x1000);
                context->slavelist[slave].SM[0].SMlength = htoes(0x0080);
-               context->slavelist[slave].SM[0].SMflags = htoel(Nex_DEFAULTMBXSM0);
+               context->slavelist[slave].SM[0].SMflags = htoel(NEX_DEFAULTMBXSM0);
                context->slavelist[slave].SMtype[0] = 1;
             }
             if (context->slavelist[slave].SM[1].StartAddr == 0x0000) /* should never happen */
             {
-               Nex_PRINT("Slave %d has no proper mailbox out configuration, try default.\n", slave);
+               NEX_PRINT("Slave %d has no proper mailbox out configuration, try default.\n", slave);
                context->slavelist[slave].SM[1].StartAddr = htoes(0x1080);
                context->slavelist[slave].SM[1].SMlength = htoes(0x0080);
-               context->slavelist[slave].SM[1].SMflags = htoel(Nex_DEFAULTMBXSM1);
+               context->slavelist[slave].SM[1].SMflags = htoel(NEX_DEFAULTMBXSM1);
                context->slavelist[slave].SMtype[1] = 2;
             }
             /* program SM0 mailbox in and SM1 mailbox out for slave */
             /* writing both SM in one datagram will solve timing issue in old NETX */
-            Nexx__FPWR(context->port, configadr, ECT_REG_SM0, sizeof(Nex_smt) * 2,
-               &(context->slavelist[slave].SM[0]), Nex_TIMEOUTRET3);
+            nexx_FPWR(context->port, configadr, ECT_REG_SM0, sizeof(nex_smt) * 2,
+               &(context->slavelist[slave].SM[0]), NEX_TIMEOUTRET3);
          }
          /* some slaves need eeprom available to PDI in init->preop transition */
-         Nexx__eeprom2pdi(context, slave);
+         nexx_eeprom2pdi(context, slave);
          /* request pre_op for slave */
-         Nexx__FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(Nex_STATE_PRE_OP | Nex_STATE_ACK) , Nex_TIMEOUTRET3); /* set preop status */
+         nexx_FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(NEX_STATE_PRE_OP | NEX_STATE_ACK) , NEX_TIMEOUTRET3); /* set preop status */
       }
    }
    return wkc;
@@ -507,7 +600,7 @@ int Nexx__config_init(Nexx__contextt *context)
 /* If slave has SII mapping and same slave ID done before, use previous mapping.
  * This is safe because SII mapping is constant for same slave ID.
  */
-static int Nexx__lookup_mapping(Nexx__contextt *context, uint16 slave, int *Osize, int *Isize)
+static int nexx_lookup_mapping(nexx_contextt *context, uint16 slave, int *Osize, int *Isize)
 {
    int i, nSM;
    if ((slave > 1) && (*(context->slavecount) > 0))
@@ -522,7 +615,7 @@ static int Nexx__lookup_mapping(Nexx__contextt *context, uint16 slave, int *Osiz
       }
       if(i < slave)
       {
-         for( nSM=0 ; nSM < Nex_MAXSM ; nSM++ )
+         for( nSM=0 ; nSM < NEX_MAXSM ; nSM++ )
          {
             context->slavelist[slave].SM[nSM].SMlength = context->slavelist[i].SM[nSM].SMlength;
             context->slavelist[slave].SMtype[nSM] = context->slavelist[i].SMtype[nSM];
@@ -531,21 +624,21 @@ static int Nexx__lookup_mapping(Nexx__contextt *context, uint16 slave, int *Osiz
          *Isize = context->slavelist[i].Ibits;
          context->slavelist[slave].Obits = *Osize;
          context->slavelist[slave].Ibits = *Isize;
-         Nex_PRINT("Copy mapping slave %d from %d.\n", slave, i);
+         NEX_PRINT("Copy mapping slave %d from %d.\n", slave, i);
          return 1;
       }
    }
    return 0;
 }
 
-static int Nexx__map_coe_soe(Nexx__contextt *context, uint16 slave, int thread_n)
+static int nexx_map_coe_soe(nexx_contextt *context, uint16 slave, int thread_n)
 {
    int Isize, Osize;
    int rval;
 
-   Nexx__statecheck(context, slave, Nex_STATE_PRE_OP, Nex_TIMEOUTSTATE); /* check state change pre-op */
+   nexx_statecheck(context, slave, NEX_STATE_PRE_OP, NEX_TIMEOUTSTATE); /* check state change pre-op */
 
-   Nex_PRINT(" >Slave %d, configadr %x, state %2.2x\n",
+   NEX_PRINT(" >Slave %d, configadr %x, state %2.2x\n",
             slave, context->slavelist[slave].configadr, context->slavelist[slave].state);
 
    /* execute special slave configuration hook Pre-Op to Safe-OP */
@@ -564,22 +657,22 @@ static int Nexx__map_coe_soe(Nexx__contextt *context, uint16 slave, int thread_n
          if (context->slavelist[slave].CoEdetails & ECT_COEDET_SDOCA) /* has Complete Access */
          {
             /* read PDO mapping via CoE and use Complete Access */
-            rval = Nexx__readPDOmapCA(context, slave, thread_n, &Osize, &Isize);
+            rval = nexx_readPDOmapCA(context, slave, thread_n, &Osize, &Isize);
          }
          if (!rval) /* CA not available or not succeeded */
          {
             /* read PDO mapping via CoE */
-            rval = Nexx__readPDOmap(context, slave, &Osize, &Isize);
+            rval = nexx_readPDOmap(context, slave, &Osize, &Isize);
          }
-         Nex_PRINT("  CoE Osize:%d Isize:%d\n", Osize, Isize);
+         NEX_PRINT("  CoE Osize:%d Isize:%d\n", Osize, Isize);
       }
       if ((!Isize && !Osize) && (context->slavelist[slave].mbx_proto & ECT_MBXPROT_SOE)) /* has SoE */
       {
          /* read AT / MDT mapping via SoE */
-         rval = Nexx__readIDNmap(context, slave, &Osize, &Isize);
+         rval = nexx_readIDNmap(context, slave, &Osize, &Isize);
          context->slavelist[slave].SM[2].SMlength = htoes((Osize + 7) / 8);
          context->slavelist[slave].SM[3].SMlength = htoes((Isize + 7) / 8);
-         Nex_PRINT("  SoE Osize:%d Isize:%d\n", Osize, Isize);
+         NEX_PRINT("  SoE Osize:%d Isize:%d\n", Osize, Isize);
       }
       context->slavelist[slave].Obits = Osize;
       context->slavelist[slave].Ibits = Isize;
@@ -588,81 +681,81 @@ static int Nexx__map_coe_soe(Nexx__contextt *context, uint16 slave, int thread_n
    return 1;
 }
 
-static int Nexx__map_sii(Nexx__contextt *context, uint16 slave)
+static int nexx_map_sii(nexx_contextt *context, uint16 slave)
 {
    int Isize, Osize;
    int nSM;
-   Nex_eepromPDOt eepPDO;
+   nex_eepromPDOt eepPDO;
 
    Osize = context->slavelist[slave].Obits;
    Isize = context->slavelist[slave].Ibits;
 
    if (!Isize && !Osize) /* find PDO in previous slave with same ID */
    {
-      (void)Nexx__lookup_mapping(context, slave, &Osize, &Isize);
+      (void)nexx_lookup_mapping(context, slave, &Osize, &Isize);
    }
    if (!Isize && !Osize) /* find PDO mapping by SII */
    {
       memset(&eepPDO, 0, sizeof(eepPDO));
-      Isize = (int)Nexx__siiPDO(context, slave, &eepPDO, 0);
-      Nex_PRINT("  SII Isize:%d\n", Isize);
-      for( nSM=0 ; nSM < Nex_MAXSM ; nSM++ )
+      Isize = (int)nexx_siiPDO(context, slave, &eepPDO, 0);
+      NEX_PRINT("  SII Isize:%d\n", Isize);
+      for( nSM=0 ; nSM < NEX_MAXSM ; nSM++ )
       {
          if (eepPDO.SMbitsize[nSM] > 0)
          {
             context->slavelist[slave].SM[nSM].SMlength =  htoes((eepPDO.SMbitsize[nSM] + 7) / 8);
             context->slavelist[slave].SMtype[nSM] = 4;
-            Nex_PRINT("    SM%d length %d\n", nSM, eepPDO.SMbitsize[nSM]);
+            NEX_PRINT("    SM%d length %d\n", nSM, eepPDO.SMbitsize[nSM]);
          }
       }
-      Osize = (int)Nexx__siiPDO(context, slave, &eepPDO, 1);
-      Nex_PRINT("  SII Osize:%d\n", Osize);
-      for( nSM=0 ; nSM < Nex_MAXSM ; nSM++ )
+      Osize = (int)nexx_siiPDO(context, slave, &eepPDO, 1);
+      NEX_PRINT("  SII Osize:%d\n", Osize);
+      for( nSM=0 ; nSM < NEX_MAXSM ; nSM++ )
       {
          if (eepPDO.SMbitsize[nSM] > 0)
          {
             context->slavelist[slave].SM[nSM].SMlength =  htoes((eepPDO.SMbitsize[nSM] + 7) / 8);
             context->slavelist[slave].SMtype[nSM] = 3;
-            Nex_PRINT("    SM%d length %d\n", nSM, eepPDO.SMbitsize[nSM]);
+            NEX_PRINT("    SM%d length %d\n", nSM, eepPDO.SMbitsize[nSM]);
          }
       }
    }
    context->slavelist[slave].Obits = Osize;
    context->slavelist[slave].Ibits = Isize;
-   Nex_PRINT("     ISIZE:%d %d OSIZE:%d\n",
+   NEX_PRINT("     ISIZE:%d %d OSIZE:%d\n",
       context->slavelist[slave].Ibits, Isize,context->slavelist[slave].Obits);
 
    return 1;
 }
 
-static int Nexx__map_sm(Nexx__contextt *context, uint16 slave)
+static int nexx_map_sm(nexx_contextt *context, uint16 slave)
 {
    uint16 configadr;
    int nSM;
 
    configadr = context->slavelist[slave].configadr;
 
-   Nex_PRINT("  SM programming\n");
+   NEX_PRINT("  SM programming\n");
    if (!context->slavelist[slave].mbx_l && context->slavelist[slave].SM[0].StartAddr)
    {
-      Nexx__FPWR(context->port, configadr, ECT_REG_SM0,
-         sizeof(Nex_smt), &(context->slavelist[slave].SM[0]), Nex_TIMEOUTRET3);
-      Nex_PRINT("    SM0 Type:%d StartAddr:%4.4x Flags:%8.8x\n",
+      nexx_FPWR(context->port, configadr, ECT_REG_SM0,
+         sizeof(nex_smt), &(context->slavelist[slave].SM[0]), NEX_TIMEOUTRET3);
+      NEX_PRINT("    SM0 Type:%d StartAddr:%4.4x Flags:%8.8x\n",
           context->slavelist[slave].SMtype[0],
           context->slavelist[slave].SM[0].StartAddr,
           context->slavelist[slave].SM[0].SMflags);
    }
    if (!context->slavelist[slave].mbx_l && context->slavelist[slave].SM[1].StartAddr)
    {
-      Nexx__FPWR(context->port, configadr, ECT_REG_SM1,
-         sizeof(Nex_smt), &context->slavelist[slave].SM[1], Nex_TIMEOUTRET3);
-      Nex_PRINT("    SM1 Type:%d StartAddr:%4.4x Flags:%8.8x\n",
+      nexx_FPWR(context->port, configadr, ECT_REG_SM1,
+         sizeof(nex_smt), &context->slavelist[slave].SM[1], NEX_TIMEOUTRET3);
+      NEX_PRINT("    SM1 Type:%d StartAddr:%4.4x Flags:%8.8x\n",
           context->slavelist[slave].SMtype[1],
           context->slavelist[slave].SM[1].StartAddr,
           context->slavelist[slave].SM[1].SMflags);
    }
    /* program SM2 to SMx */
-   for( nSM = 2 ; nSM < Nex_MAXSM ; nSM++ )
+   for( nSM = 2 ; nSM < NEX_MAXSM ; nSM++ )
    {
       if (context->slavelist[slave].SM[nSM].StartAddr)
       {
@@ -670,11 +763,11 @@ static int Nexx__map_sm(Nexx__contextt *context, uint16 slave)
          if( context->slavelist[slave].SM[nSM].SMlength == 0)
          {
             context->slavelist[slave].SM[nSM].SMflags =
-               htoel( etohl(context->slavelist[slave].SM[nSM].SMflags) & Nex_SMENABLEMASK);
+               htoel( etohl(context->slavelist[slave].SM[nSM].SMflags) & NEX_SMENABLEMASK);
          }
-         Nexx__FPWR(context->port, configadr, (uint16)(ECT_REG_SM0 + (nSM * sizeof(Nex_smt))),
-            sizeof(Nex_smt), &context->slavelist[slave].SM[nSM], Nex_TIMEOUTRET3);
-         Nex_PRINT("    SM%d Type:%d StartAddr:%4.4x Flags:%8.8x\n", nSM,
+         nexx_FPWR(context->port, configadr, (uint16)(ECT_REG_SM0 + (nSM * sizeof(nex_smt))),
+            sizeof(nex_smt), &context->slavelist[slave].SM[nSM], NEX_TIMEOUTRET3);
+         NEX_PRINT("    SM%d Type:%d StartAddr:%4.4x Flags:%8.8x\n", nSM,
              context->slavelist[slave].SMtype[nSM],
              context->slavelist[slave].SM[nSM].StartAddr,
              context->slavelist[slave].SM[nSM].SMflags);
@@ -692,23 +785,23 @@ static int Nexx__map_sm(Nexx__contextt *context, uint16 slave)
    return 1;
 }
 
-OSAL_THREAD_FUNC Nexx__mapper_thread(void *param)
+OSAL_THREAD_FUNC nexx_mapper_thread(void *param)
 {
-   Nexx__mapt_t *maptp;
+   nexx_mapt_t *maptp;
    maptp = param;
-   Nexx__map_coe_soe(maptp->context, maptp->slave, maptp->thread_n);
+   nexx_map_coe_soe(maptp->context, maptp->slave, maptp->thread_n);
    maptp->running = 0;
 }
 
-static int Nexx__find_mapt(void)
+static int nexx_find_mapt(void)
 {
    int p;
    p = 0;
-   while((p < Nex_MAX_MAPT) && Nexx__mapt[p].running)
+   while((p < NEX_MAX_MAPT) && nexx_mapt[p].running)
    {
       p++;
    }
-   if(p < Nex_MAX_MAPT)
+   if(p < NEX_MAX_MAPT)
    {
       return p;
    }
@@ -718,56 +811,56 @@ static int Nexx__find_mapt(void)
    }
 }
 
-static int Nexx__get_threadcount(void)
+static int nexx_get_threadcount(void)
 {
    int thrc, thrn;
    thrc = 0;
-   for(thrn = 0 ; thrn < Nex_MAX_MAPT ; thrn++)
+   for(thrn = 0 ; thrn < NEX_MAX_MAPT ; thrn++)
    {
-      thrc += Nexx__mapt[thrn].running;
+      thrc += nexx_mapt[thrn].running;
    }
    return thrc;
 }
 
-static void Nexx__config_find_mappings(Nexx__contextt *context, uint8 group)
+static void nexx_config_find_mappings(nexx_contextt *context, uint8 group)
 {
    int thrn, thrc;
    uint16 slave;
 
-   for (thrn = 0; thrn < Nex_MAX_MAPT; thrn++)
+   for (thrn = 0; thrn < NEX_MAX_MAPT; thrn++)
    {
-      Nexx__mapt[thrn].running = 0;
+      nexx_mapt[thrn].running = 0;
    }
    /* find CoE and SoE mapping of slaves in multiple threads */
    for (slave = 1; slave <= *(context->slavecount); slave++)
    {
       if (!group || (group == context->slavelist[slave].group))
       {
-         if (Nex_MAX_MAPT <= 1)
+         if (NEX_MAX_MAPT <= 1)
          {
             /* serialised version */
-            Nexx__map_coe_soe(context, slave, 0);
+            nexx_map_coe_soe(context, slave, 0);
          }
          else
          {
             /* multi-threaded version */
-            while ((thrn = Nexx__find_mapt()) < 0)
+            while ((thrn = nexx_find_mapt()) < 0)
             {
                osal_usleep(1000);
             }
-            Nexx__mapt[thrn].context = context;
-            Nexx__mapt[thrn].slave = slave;
-            Nexx__mapt[thrn].thread_n = thrn;
-            Nexx__mapt[thrn].running = 1;
-            osal_thread_create(&(Nexx__threadh[thrn]), 128000,
-               &Nexx__mapper_thread, &(Nexx__mapt[thrn]));
+            nexx_mapt[thrn].context = context;
+            nexx_mapt[thrn].slave = slave;
+            nexx_mapt[thrn].thread_n = thrn;
+            nexx_mapt[thrn].running = 1;
+            osal_thread_create(&(nexx_threadh[thrn]), 128000,
+               &nexx_mapper_thread, &(nexx_mapt[thrn]));
          }
       }
    }
    /* wait for all threads to finish */
    do
    {
-      thrc = Nexx__get_threadcount();
+      thrc = nexx_get_threadcount();
       if (thrc)
       {
          osal_usleep(1000);
@@ -778,13 +871,13 @@ static void Nexx__config_find_mappings(Nexx__contextt *context, uint8 group)
    {
       if (!group || (group == context->slavelist[slave].group))
       {
-         Nexx__map_sii(context, slave);
-         Nexx__map_sm(context, slave);
+         nexx_map_sii(context, slave);
+         nexx_map_sm(context, slave);
       }
    }
 }
 
-static void Nexx__config_create_input_mappings(Nexx__contextt *context, void *pIOmap, 
+static void nexx_config_create_input_mappings(nexx_contextt *context, void *pIOmap, 
    uint8 group, int16 slave, uint32 * LogAddr, uint8 * BitPos)
 {
    int BitCount = 0;
@@ -797,7 +890,7 @@ static void Nexx__config_create_input_mappings(Nexx__contextt *context, void *pI
    uint16 configadr;
    uint8 FMMUc;
 
-   Nex_PRINT(" =Slave %d, INPUT MAPPING\n", slave);
+   NEX_PRINT(" =Slave %d, INPUT MAPPING\n", slave);
 
    configadr = context->slavelist[slave].configadr;
    FMMUc = context->slavelist[slave].FMMUunused;
@@ -809,24 +902,24 @@ static void Nexx__config_create_input_mappings(Nexx__contextt *context, void *pI
       }
    }
    /* search for SM that contribute to the input mapping */
-   while ((SMc < (Nex_MAXSM - 1)) && (FMMUdone < ((context->slavelist[slave].Ibits + 7) / 8)))
+   while ((SMc < (NEX_MAXSM - 1)) && (FMMUdone < ((context->slavelist[slave].Ibits + 7) / 8)))
    {
-      Nex_PRINT("    FMMU %d\n", FMMUc);
-      while ((SMc < (Nex_MAXSM - 1)) && (context->slavelist[slave].SMtype[SMc] != 4))
+      NEX_PRINT("    FMMU %d\n", FMMUc);
+      while ((SMc < (NEX_MAXSM - 1)) && (context->slavelist[slave].SMtype[SMc] != 4))
       {
          SMc++;
       }
-      Nex_PRINT("      SM%d\n", SMc);
+      NEX_PRINT("      SM%d\n", SMc);
       context->slavelist[slave].FMMU[FMMUc].PhysStart =
          context->slavelist[slave].SM[SMc].StartAddr;
       SMlength = etohs(context->slavelist[slave].SM[SMc].SMlength);
       ByteCount += SMlength;
       BitCount += SMlength * 8;
       EndAddr = etohs(context->slavelist[slave].SM[SMc].StartAddr) + SMlength;
-      while ((BitCount < context->slavelist[slave].Ibits) && (SMc < (Nex_MAXSM - 1))) /* more SM for input */
+      while ((BitCount < context->slavelist[slave].Ibits) && (SMc < (NEX_MAXSM - 1))) /* more SM for input */
       {
          SMc++;
-         while ((SMc < (Nex_MAXSM - 1)) && (context->slavelist[slave].SMtype[SMc] != 4))
+         while ((SMc < (NEX_MAXSM - 1)) && (context->slavelist[slave].SMtype[SMc] != 4))
          {
             SMc++;
          }
@@ -835,7 +928,7 @@ static void Nexx__config_create_input_mappings(Nexx__contextt *context, void *pI
          {
             break;
          }
-         Nex_PRINT("      SM%d\n", SMc);
+         NEX_PRINT("      SM%d\n", SMc);
          SMlength = etohs(context->slavelist[slave].SM[SMc].SMlength);
          ByteCount += SMlength;
          BitCount += SMlength * 8;
@@ -891,8 +984,8 @@ static void Nexx__config_create_input_mappings(Nexx__contextt *context, void *pI
          context->slavelist[slave].FMMU[FMMUc].FMMUtype = 1;
          context->slavelist[slave].FMMU[FMMUc].FMMUactive = 1;
          /* program FMMU for input */
-         Nexx__FPWR(context->port, configadr, ECT_REG_FMMU0 + (sizeof(Nex_fmmut) * FMMUc),
-            sizeof(Nex_fmmut), &(context->slavelist[slave].FMMU[FMMUc]), Nex_TIMEOUTRET3);
+         nexx_FPWR(context->port, configadr, ECT_REG_FMMU0 + (sizeof(nex_fmmut) * FMMUc),
+            sizeof(nex_fmmut), &(context->slavelist[slave].FMMU[FMMUc]), NEX_TIMEOUTRET3);
          /* add one for an input FMMU */
          context->grouplist[group].inputsWKC++;
       }
@@ -902,7 +995,7 @@ static void Nexx__config_create_input_mappings(Nexx__contextt *context, void *pI
             (uint8 *)(pIOmap)+etohl(context->slavelist[slave].FMMU[FMMUc].LogStart);
          context->slavelist[slave].Istartbit =
             context->slavelist[slave].FMMU[FMMUc].LogStartbit;
-         Nex_PRINT("    Inputs %p startbit %d\n",
+         NEX_PRINT("    Inputs %p startbit %d\n",
             context->slavelist[slave].inputs,
             context->slavelist[slave].Istartbit);
       }
@@ -911,7 +1004,7 @@ static void Nexx__config_create_input_mappings(Nexx__contextt *context, void *pI
    context->slavelist[slave].FMMUunused = FMMUc;
 }
 
-static void Nexx__config_create_output_mappings(Nexx__contextt *context, void *pIOmap, 
+static void nexx_config_create_output_mappings(nexx_contextt *context, void *pIOmap, 
    uint8 group, int16 slave, uint32 * LogAddr, uint8 * BitPos)
 {
    int BitCount = 0;
@@ -924,30 +1017,30 @@ static void Nexx__config_create_output_mappings(Nexx__contextt *context, void *p
    uint16 configadr;
    uint8 FMMUc;
 
-   Nex_PRINT("  OUTPUT MAPPING\n");
+   NEX_PRINT("  OUTPUT MAPPING\n");
 
    FMMUc = context->slavelist[slave].FMMUunused;
    configadr = context->slavelist[slave].configadr;
 
    /* search for SM that contribute to the output mapping */
-   while ((SMc < (Nex_MAXSM - 1)) && (FMMUdone < ((context->slavelist[slave].Obits + 7) / 8)))
+   while ((SMc < (NEX_MAXSM - 1)) && (FMMUdone < ((context->slavelist[slave].Obits + 7) / 8)))
    {
-      Nex_PRINT("    FMMU %d\n", FMMUc);
-      while ((SMc < (Nex_MAXSM - 1)) && (context->slavelist[slave].SMtype[SMc] != 3))
+      NEX_PRINT("    FMMU %d\n", FMMUc);
+      while ((SMc < (NEX_MAXSM - 1)) && (context->slavelist[slave].SMtype[SMc] != 3))
       {
          SMc++;
       }
-      Nex_PRINT("      SM%d\n", SMc);
+      NEX_PRINT("      SM%d\n", SMc);
       context->slavelist[slave].FMMU[FMMUc].PhysStart =
          context->slavelist[slave].SM[SMc].StartAddr;
       SMlength = etohs(context->slavelist[slave].SM[SMc].SMlength);
       ByteCount += SMlength;
       BitCount += SMlength * 8;
       EndAddr = etohs(context->slavelist[slave].SM[SMc].StartAddr) + SMlength;
-      while ((BitCount < context->slavelist[slave].Obits) && (SMc < (Nex_MAXSM - 1))) /* more SM for output */
+      while ((BitCount < context->slavelist[slave].Obits) && (SMc < (NEX_MAXSM - 1))) /* more SM for output */
       {
          SMc++;
-         while ((SMc < (Nex_MAXSM - 1)) && (context->slavelist[slave].SMtype[SMc] != 3))
+         while ((SMc < (NEX_MAXSM - 1)) && (context->slavelist[slave].SMtype[SMc] != 3))
          {
             SMc++;
          }
@@ -956,7 +1049,7 @@ static void Nexx__config_create_output_mappings(Nexx__contextt *context, void *p
          {
             break;
          }
-         Nex_PRINT("      SM%d\n", SMc);
+         NEX_PRINT("      SM%d\n", SMc);
          SMlength = etohs(context->slavelist[slave].SM[SMc].SMlength);
          ByteCount += SMlength;
          BitCount += SMlength * 8;
@@ -1010,8 +1103,8 @@ static void Nexx__config_create_output_mappings(Nexx__contextt *context, void *p
       context->slavelist[slave].FMMU[FMMUc].FMMUtype = 2;
       context->slavelist[slave].FMMU[FMMUc].FMMUactive = 1;
       /* program FMMU for output */
-      Nexx__FPWR(context->port, configadr, ECT_REG_FMMU0 + (sizeof(Nex_fmmut) * FMMUc),
-         sizeof(Nex_fmmut), &(context->slavelist[slave].FMMU[FMMUc]), Nex_TIMEOUTRET3);
+      nexx_FPWR(context->port, configadr, ECT_REG_FMMU0 + (sizeof(nex_fmmut) * FMMUc),
+         sizeof(nex_fmmut), &(context->slavelist[slave].FMMU[FMMUc]), NEX_TIMEOUTRET3);
       context->grouplist[group].outputsWKC++;
       if (!context->slavelist[slave].outputs)
       {
@@ -1019,7 +1112,7 @@ static void Nexx__config_create_output_mappings(Nexx__contextt *context, void *p
             (uint8 *)(pIOmap)+etohl(context->slavelist[slave].FMMU[FMMUc].LogStart);
          context->slavelist[slave].Ostartbit =
             context->slavelist[slave].FMMU[FMMUc].LogStartbit;
-         Nex_PRINT("    slave %d Outputs %p startbit %d\n",
+         NEX_PRINT("    slave %d Outputs %p startbit %d\n",
             slave,
             context->slavelist[slave].outputs,
             context->slavelist[slave].Ostartbit);
@@ -1038,7 +1131,7 @@ static void Nexx__config_create_output_mappings(Nexx__contextt *context, void *p
  * @param[in]  group      = group to map, 0 = all groups
  * @return IOmap size
  */
-int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
+int nexx_config_map_group(nexx_contextt *context, void *pIOmap, uint8 group)
 {
    uint16 slave, configadr;
    uint8 BitPos;
@@ -1050,7 +1143,7 @@ int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
 
    if ((*(context->slavecount) > 0) && (group < context->maxgroup))
    {
-      Nex_PRINT("Nex_config_map_group IOmap:%p group:%d\n", pIOmap, group);
+      NEX_PRINT("nex_config_map_group IOmap:%p group:%d\n", pIOmap, group);
       LogAddr = context->grouplist[group].logstartaddr;
       oLogAddr = LogAddr;
       BitPos = 0;
@@ -1059,7 +1152,7 @@ int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
       context->grouplist[group].inputsWKC = 0;
 
       /* Find mappings and program syncmanagers */
-      Nexx__config_find_mappings(context, group);
+      nexx_config_find_mappings(context, group);
 
       /* do output mapping of slave and program FMMUs */
       for (slave = 1; slave <= *(context->slavecount); slave++)
@@ -1071,13 +1164,13 @@ int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
             /* create output mapping */
             if (context->slavelist[slave].Obits)
             {
-               Nexx__config_create_output_mappings (context, pIOmap, group, slave, &LogAddr, &BitPos);
+               nexx_config_create_output_mappings (context, pIOmap, group, slave, &LogAddr, &BitPos);
                diff = LogAddr - oLogAddr;
                oLogAddr = LogAddr;
-               if ((segmentsize + diff) > (Nex_MAXLRWDATA - Nex_FIRSTDCDATAGRAM))
+               if ((segmentsize + diff) > (NEX_MAXLRWDATA - NEX_FIRSTDCDATAGRAM))
                {
                   context->grouplist[group].IOsegment[currentsegment] = segmentsize;
-                  if (currentsegment < (Nex_MAXIOSEGMENTS - 1))
+                  if (currentsegment < (NEX_MAXIOSEGMENTS - 1))
                   {
                      currentsegment++;
                      segmentsize = diff;
@@ -1095,10 +1188,10 @@ int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
          LogAddr++;
          oLogAddr = LogAddr;
          BitPos = 0;
-         if ((segmentsize + 1) > (Nex_MAXLRWDATA - Nex_FIRSTDCDATAGRAM))
+         if ((segmentsize + 1) > (NEX_MAXLRWDATA - NEX_FIRSTDCDATAGRAM))
          {
             context->grouplist[group].IOsegment[currentsegment] = segmentsize;
-            if (currentsegment < (Nex_MAXIOSEGMENTS - 1))
+            if (currentsegment < (NEX_MAXIOSEGMENTS - 1))
             {
                currentsegment++;
                segmentsize = 1;
@@ -1130,13 +1223,13 @@ int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
             if (context->slavelist[slave].Ibits)
             {
  
-               Nexx__config_create_input_mappings(context, pIOmap, group, slave, &LogAddr, &BitPos);
+               nexx_config_create_input_mappings(context, pIOmap, group, slave, &LogAddr, &BitPos);
                diff = LogAddr - oLogAddr;
                oLogAddr = LogAddr;
-               if ((segmentsize + diff) > (Nex_MAXLRWDATA - Nex_FIRSTDCDATAGRAM))
+               if ((segmentsize + diff) > (NEX_MAXLRWDATA - NEX_FIRSTDCDATAGRAM))
                {
                   context->grouplist[group].IOsegment[currentsegment] = segmentsize;
-                  if (currentsegment < (Nex_MAXIOSEGMENTS - 1))
+                  if (currentsegment < (NEX_MAXIOSEGMENTS - 1))
                   {
                      currentsegment++;
                      segmentsize = diff;
@@ -1148,8 +1241,8 @@ int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
                }
             }
 
-            Nexx__eeprom2pdi(context, slave); /* set Eeprom control to PDI */
-            Nexx__FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(Nex_STATE_SAFE_OP) , Nex_TIMEOUTRET3); /* set safeop status */
+            nexx_eeprom2pdi(context, slave); /* set Eeprom control to PDI */
+            nexx_FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(NEX_STATE_SAFE_OP) , NEX_TIMEOUTRET3); /* set safeop status */
 
             if (context->slavelist[slave].blockLRW)
             {
@@ -1163,10 +1256,10 @@ int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
          LogAddr++;
          oLogAddr = LogAddr;
          BitPos = 0;
-         if ((segmentsize + 1) > (Nex_MAXLRWDATA - Nex_FIRSTDCDATAGRAM))
+         if ((segmentsize + 1) > (NEX_MAXLRWDATA - NEX_FIRSTDCDATAGRAM))
          {
             context->grouplist[group].IOsegment[currentsegment] = segmentsize;
-            if (currentsegment < (Nex_MAXIOSEGMENTS - 1))
+            if (currentsegment < (NEX_MAXIOSEGMENTS - 1))
             {
                currentsegment++;
                segmentsize = 1;
@@ -1187,7 +1280,7 @@ int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
          context->slavelist[0].Ibytes = LogAddr - context->slavelist[0].Obytes; /* store input bytes in master record */
       }
 
-      Nex_PRINT("IOmapSize %d\n", LogAddr - context->grouplist[group].logstartaddr);
+      NEX_PRINT("IOmapSize %d\n", LogAddr - context->grouplist[group].logstartaddr);
 
       return (LogAddr - context->grouplist[group].logstartaddr);
    }
@@ -1203,7 +1296,7 @@ int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
  * @param[in]  group      = group to map, 0 = all groups
  * @return IOmap size
  */
-int Nexx__config_overlap_map_group(Nexx__contextt *context, void *pIOmap, uint8 group)
+int nexx_config_overlap_map_group(nexx_contextt *context, void *pIOmap, uint8 group)
 {
    uint16 slave, configadr;
    uint8 BitPos;
@@ -1217,7 +1310,7 @@ int Nexx__config_overlap_map_group(Nexx__contextt *context, void *pIOmap, uint8 
 
    if ((*(context->slavecount) > 0) && (group < context->maxgroup))
    {
-      Nex_PRINT("Nex_config_map_group IOmap:%p group:%d\n", pIOmap, group);
+      NEX_PRINT("nex_config_map_group IOmap:%p group:%d\n", pIOmap, group);
       mLogAddr = context->grouplist[group].logstartaddr;
       siLogAddr = mLogAddr;
       soLogAddr = mLogAddr;
@@ -1227,7 +1320,7 @@ int Nexx__config_overlap_map_group(Nexx__contextt *context, void *pIOmap, uint8 
       context->grouplist[group].inputsWKC = 0;
 
       /* Find mappings and program syncmanagers */
-      Nexx__config_find_mappings(context, group);
+      nexx_config_find_mappings(context, group);
       
       /* do IO mapping of slave and program FMMUs */
       for (slave = 1; slave <= *(context->slavecount); slave++)
@@ -1241,7 +1334,7 @@ int Nexx__config_overlap_map_group(Nexx__contextt *context, void *pIOmap, uint8 
             if (context->slavelist[slave].Obits)
             {
                
-               Nexx__config_create_output_mappings(context, pIOmap, group, 
+               nexx_config_create_output_mappings(context, pIOmap, group, 
                   slave, &soLogAddr, &BitPos);
                if (BitPos)
                {
@@ -1253,7 +1346,7 @@ int Nexx__config_overlap_map_group(Nexx__contextt *context, void *pIOmap, uint8 
             /* create input mapping */
             if (context->slavelist[slave].Ibits)
             {
-               Nexx__config_create_input_mappings(context, pIOmap, group, 
+               nexx_config_create_input_mappings(context, pIOmap, group, 
                   slave, &siLogAddr, &BitPos);
                if (BitPos)
                {
@@ -1266,10 +1359,10 @@ int Nexx__config_overlap_map_group(Nexx__contextt *context, void *pIOmap, uint8 
             diff = tempLogAddr - mLogAddr;
             mLogAddr = tempLogAddr;
 
-            if ((segmentsize + diff) > (Nex_MAXLRWDATA - Nex_FIRSTDCDATAGRAM))
+            if ((segmentsize + diff) > (NEX_MAXLRWDATA - NEX_FIRSTDCDATAGRAM))
             {
                context->grouplist[group].IOsegment[currentsegment] = segmentsize;
-               if (currentsegment < (Nex_MAXIOSEGMENTS - 1))
+               if (currentsegment < (NEX_MAXIOSEGMENTS - 1))
                {
                   currentsegment++;
                   segmentsize = diff;
@@ -1280,8 +1373,8 @@ int Nexx__config_overlap_map_group(Nexx__contextt *context, void *pIOmap, uint8 
                segmentsize += diff;
             }
 
-            Nexx__eeprom2pdi(context, slave); /* set Eeprom control to PDI */
-            Nexx__FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(Nex_STATE_SAFE_OP), Nex_TIMEOUTRET3); /* set safeop status */
+            nexx_eeprom2pdi(context, slave); /* set Eeprom control to PDI */
+            nexx_FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(NEX_STATE_SAFE_OP), NEX_TIMEOUTRET3); /* set safeop status */
 
             if (context->slavelist[slave].blockLRW)
             {
@@ -1316,7 +1409,7 @@ int Nexx__config_overlap_map_group(Nexx__contextt *context, void *pIOmap, uint8 
          context->slavelist[0].Ibytes = siLogAddr;
       }
 
-      Nex_PRINT("IOmapSize %d\n", context->grouplist[group].Obytes + context->grouplist[group].Ibytes);
+      NEX_PRINT("IOmapSize %d\n", context->grouplist[group].Obytes + context->grouplist[group].Ibytes);
 
       return (context->grouplist[group].Obytes + context->grouplist[group].Ibytes);
    }
@@ -1329,10 +1422,10 @@ int Nexx__config_overlap_map_group(Nexx__contextt *context, void *pIOmap, uint8 
  *
  * @param[in] context = context struct
  * @param[in] slave   = slave to recover
- * @param[in] timeout = local timeout f.e. Nex_TIMEOUTRET3
+ * @param[in] timeout = local timeout f.e. NEX_TIMEOUTRET3
  * @return >0 if successful
  */
-int Nexx__recover_slave(Nexx__contextt *context, uint16 slave, int timeout)
+int nexx_recover_slave(nexx_contextt *context, uint16 slave, int timeout)
 {
    int rval;
    int wkc;
@@ -1343,7 +1436,7 @@ int Nexx__recover_slave(Nexx__contextt *context, uint16 slave, int timeout)
    ADPh = (uint16)(1 - slave);
    /* check if we found another slave than the requested */
    readadr = 0xfffe;
-   wkc = Nexx__APRD(context->port, ADPh, ECT_REG_STADR, sizeof(readadr), &readadr, timeout);
+   wkc = nexx_APRD(context->port, ADPh, ECT_REG_STADR, sizeof(readadr), &readadr, timeout);
    /* correct slave found, finished */
    if(readadr == configadr)
    {
@@ -1352,35 +1445,35 @@ int Nexx__recover_slave(Nexx__contextt *context, uint16 slave, int timeout)
    /* only try if no config address*/
    if( (wkc > 0) && (readadr == 0))
    {
-      /* clear possible slaves at Nex_TEMPNODE */
-      Nexx__FPWRw(context->port, Nex_TEMPNODE, ECT_REG_STADR, htoes(0) , 0);
+      /* clear possible slaves at NEX_TEMPNODE */
+      nexx_FPWRw(context->port, NEX_TEMPNODE, ECT_REG_STADR, htoes(0) , 0);
       /* set temporary node address of slave */
-      if(Nexx__APWRw(context->port, ADPh, ECT_REG_STADR, htoes(Nex_TEMPNODE) , timeout) <= 0)
+      if(nexx_APWRw(context->port, ADPh, ECT_REG_STADR, htoes(NEX_TEMPNODE) , timeout) <= 0)
       {
-         Nexx__FPWRw(context->port, Nex_TEMPNODE, ECT_REG_STADR, htoes(0) , 0);
+         nexx_FPWRw(context->port, NEX_TEMPNODE, ECT_REG_STADR, htoes(0) , 0);
          return 0; /* slave fails to respond */
       }
 
-      context->slavelist[slave].configadr = Nex_TEMPNODE; /* temporary config address */
-      Nexx__eeprom2master(context, slave); /* set Eeprom control to master */
+      context->slavelist[slave].configadr = NEX_TEMPNODE; /* temporary config address */
+      nexx_eeprom2master(context, slave); /* set Eeprom control to master */
 
       /* check if slave is the same as configured before */
-      if ((Nexx__FPRDw(context->port, Nex_TEMPNODE, ECT_REG_ALIAS, timeout) ==
+      if ((nexx_FPRDw(context->port, NEX_TEMPNODE, ECT_REG_ALIAS, timeout) ==
              context->slavelist[slave].aliasadr) &&
-          (Nexx__readeeprom(context, slave, ECT_SII_ID, Nex_TIMEOUTEEP) ==
+          (nexx_readeeprom(context, slave, ECT_SII_ID, NEX_TIMEOUTEEP) ==
              context->slavelist[slave].eep_id) &&
-          (Nexx__readeeprom(context, slave, ECT_SII_MANUF, Nex_TIMEOUTEEP) ==
+          (nexx_readeeprom(context, slave, ECT_SII_MANUF, NEX_TIMEOUTEEP) ==
              context->slavelist[slave].eep_man) &&
-          (Nexx__readeeprom(context, slave, ECT_SII_REV, Nex_TIMEOUTEEP) ==
+          (nexx_readeeprom(context, slave, ECT_SII_REV, NEX_TIMEOUTEEP) ==
              context->slavelist[slave].eep_rev))
       {
-         rval = Nexx__FPWRw(context->port, Nex_TEMPNODE, ECT_REG_STADR, htoes(configadr) , timeout);
+         rval = nexx_FPWRw(context->port, NEX_TEMPNODE, ECT_REG_STADR, htoes(configadr) , timeout);
          context->slavelist[slave].configadr = configadr;
       }
       else
       {
          /* slave is not the expected one, remove config address*/
-         Nexx__FPWRw(context->port, Nex_TEMPNODE, ECT_REG_STADR, htoes(0) , timeout);
+         nexx_FPWRw(context->port, NEX_TEMPNODE, ECT_REG_STADR, htoes(0) , timeout);
          context->slavelist[slave].configadr = configadr;
       }
    }
@@ -1392,50 +1485,50 @@ int Nexx__recover_slave(Nexx__contextt *context, uint16 slave, int timeout)
  *
  * @param[in] context = context struct
  * @param[in] slave   = slave to reconfigure
- * @param[in] timeout = local timeout f.e. Nex_TIMEOUTRET3
+ * @param[in] timeout = local timeout f.e. NEX_TIMEOUTRET3
  * @return Slave state
  */
-int Nexx__reconfig_slave(Nexx__contextt *context, uint16 slave, int timeout)
+int nexx_reconfig_slave(nexx_contextt *context, uint16 slave, int timeout)
 {
    int state, nSM, FMMUc;
    uint16 configadr;
 
    configadr = context->slavelist[slave].configadr;
-   if (Nexx__FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(Nex_STATE_INIT) , timeout) <= 0)
+   if (nexx_FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(NEX_STATE_INIT) , timeout) <= 0)
    {
       return 0;
    }
    state = 0;
-   Nexx__eeprom2pdi(context, slave); /* set Eeprom control to PDI */
+   nexx_eeprom2pdi(context, slave); /* set Eeprom control to PDI */
    /* check state change init */
-   state = Nexx__statecheck(context, slave, Nex_STATE_INIT, Nex_TIMEOUTSTATE);
-   if(state == Nex_STATE_INIT)
+   state = nexx_statecheck(context, slave, NEX_STATE_INIT, NEX_TIMEOUTSTATE);
+   if(state == NEX_STATE_INIT)
    {
       /* program all enabled SM */
-      for( nSM = 0 ; nSM < Nex_MAXSM ; nSM++ )
+      for( nSM = 0 ; nSM < NEX_MAXSM ; nSM++ )
       {
          if (context->slavelist[slave].SM[nSM].StartAddr)
          {
-            Nexx__FPWR(context->port, configadr, (uint16)(ECT_REG_SM0 + (nSM * sizeof(Nex_smt))),
-               sizeof(Nex_smt), &context->slavelist[slave].SM[nSM], timeout);
+            nexx_FPWR(context->port, configadr, (uint16)(ECT_REG_SM0 + (nSM * sizeof(nex_smt))),
+               sizeof(nex_smt), &context->slavelist[slave].SM[nSM], timeout);
          }
       }
-      Nexx__FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(Nex_STATE_PRE_OP) , timeout);
-      state = Nexx__statecheck(context, slave, Nex_STATE_PRE_OP, Nex_TIMEOUTSTATE); /* check state change pre-op */
-      if( state == Nex_STATE_PRE_OP)
+      nexx_FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(NEX_STATE_PRE_OP) , timeout);
+      state = nexx_statecheck(context, slave, NEX_STATE_PRE_OP, NEX_TIMEOUTSTATE); /* check state change pre-op */
+      if( state == NEX_STATE_PRE_OP)
       {
          /* execute special slave configuration hook Pre-Op to Safe-OP */
          if(context->slavelist[slave].PO2SOconfig) /* only if registered */
          {
             context->slavelist[slave].PO2SOconfig(slave);
          }
-         Nexx__FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(Nex_STATE_SAFE_OP) , timeout); /* set safeop status */
-         state = Nexx__statecheck(context, slave, Nex_STATE_SAFE_OP, Nex_TIMEOUTSTATE); /* check state change safe-op */
+         nexx_FPWRw(context->port, configadr, ECT_REG_ALCTL, htoes(NEX_STATE_SAFE_OP) , timeout); /* set safeop status */
+         state = nexx_statecheck(context, slave, NEX_STATE_SAFE_OP, NEX_TIMEOUTSTATE); /* check state change safe-op */
          /* program configured FMMU */
          for( FMMUc = 0 ; FMMUc < context->slavelist[slave].FMMUunused ; FMMUc++ )
          {
-            Nexx__FPWR(context->port, configadr, (uint16)(ECT_REG_FMMU0 + (sizeof(Nex_fmmut) * FMMUc)),
-               sizeof(Nex_fmmut), &context->slavelist[slave].FMMU[FMMUc], timeout);
+            nexx_FPWR(context->port, configadr, (uint16)(ECT_REG_FMMU0 + (sizeof(nex_fmmut) * FMMUc)),
+               sizeof(nex_fmmut), &context->slavelist[slave].FMMU[FMMUc], timeout);
          }
       }
    }
@@ -1443,16 +1536,16 @@ int Nexx__reconfig_slave(Nexx__contextt *context, uint16 slave, int timeout)
    return state;
 }
 
-
+#ifdef NEX_VER1
 /** Enumerate and init all slaves.
  *
  * @param[in] usetable     = TRUE when using configtable to init slaves, FALSE otherwise
  * @return Workcounter of slave discover datagram = number of slaves found
- * @see Nexx__config_init
+ * @see nexx_config_init
  */
-int Nex_config_init(void)
+int nex_config_init()
 {
-   return Nexx__config_init(&Nexx__context);
+   return nexx_config_init(&nexx_context);
 }
 
 /** Map all PDOs in one group of slaves to IOmap with Outputs/Inputs
@@ -1461,11 +1554,11 @@ int Nex_config_init(void)
  * @param[out] pIOmap     = pointer to IOmap
  * @param[in]  group      = group to map, 0 = all groups
  * @return IOmap size
- * @see Nexx__config_map_group
+ * @see nexx_config_map_group
  */
-int Nex_config_map_group(void *pIOmap, uint8 group)
+int nex_config_map_group(void *pIOmap, uint8 group)
 {
-   return Nexx__config_map_group(&Nexx__context, pIOmap, group);
+   return nexx_config_map_group(&nexx_context, pIOmap, group);
 }
 
 /** Map all PDOs in one group of slaves to IOmap with Outputs/Inputs
@@ -1474,11 +1567,11 @@ int Nex_config_map_group(void *pIOmap, uint8 group)
 * @param[out] pIOmap     = pointer to IOmap
 * @param[in]  group      = group to map, 0 = all groups
 * @return IOmap size
-* @see Nexx__config_overlap_map_group
+* @see nexx_config_overlap_map_group
 */
-int Nex_config_overlap_map_group(void *pIOmap, uint8 group)
+int nex_config_overlap_map_group(void *pIOmap, uint8 group)
 {
-   return Nexx__config_overlap_map_group(&Nexx__context, pIOmap, group);
+   return nexx_config_overlap_map_group(&nexx_context, pIOmap, group);
 }
 
 /** Map all PDOs from slaves to IOmap with Outputs/Inputs
@@ -1487,9 +1580,9 @@ int Nex_config_overlap_map_group(void *pIOmap, uint8 group)
  * @param[out] pIOmap     = pointer to IOmap
  * @return IOmap size
  */
-int Nex_config_map(void *pIOmap)
+int nex_config_map(void *pIOmap)
 {
-   return Nex_config_map_group(pIOmap, 0);
+   return nex_config_map_group(pIOmap, 0);
 }
 
 /** Map all PDOs from slaves to IOmap with Outputs/Inputs
@@ -1498,9 +1591,9 @@ int Nex_config_map(void *pIOmap)
 * @param[out] pIOmap     = pointer to IOmap
 * @return IOmap size
 */
-int Nex_config_overlap_map(void *pIOmap)
+int nex_config_overlap_map(void *pIOmap)
 {
-   return Nex_config_overlap_map_group(pIOmap, 0);
+   return nex_config_overlap_map_group(pIOmap, 0);
 }
 
 /** Enumerate / map and init all slaves.
@@ -1509,13 +1602,13 @@ int Nex_config_overlap_map(void *pIOmap)
  * @param[out] pIOmap     = pointer to IOmap
  * @return Workcounter of slave discover datagram = number of slaves found
  */
-int Nex_config(void *pIOmap)
+int nex_config(void *pIOmap)
 {
    int wkc;
-   wkc = Nex_config_init();
+   wkc = nex_config_init();
    if (wkc)
    {
-      Nex_config_map(pIOmap);
+      nex_config_map(pIOmap);
    }
    return wkc;
 }
@@ -1526,13 +1619,13 @@ int Nex_config(void *pIOmap)
 * @param[out] pIOmap     = pointer to IOmap
 * @return Workcounter of slave discover datagram = number of slaves found
 */
-int Nex_config_overlap(void *pIOmap)
+int nex_config_overlap(void *pIOmap)
 {
    int wkc;
-   wkc = Nex_config_init();
+   wkc = nex_config_init();
    if (wkc)
    {
-      Nex_config_overlap_map(pIOmap);
+      nex_config_overlap_map(pIOmap);
    }
    return wkc;
 }
@@ -1540,24 +1633,24 @@ int Nex_config_overlap(void *pIOmap)
 /** Recover slave.
  *
  * @param[in] slave   = slave to recover
- * @param[in] timeout = local timeout f.e. Nex_TIMEOUTRET3
+ * @param[in] timeout = local timeout f.e. NEX_TIMEOUTRET3
  * @return >0 if successful
- * @see Nexx__recover_slave
+ * @see nexx_recover_slave
  */
-int Nex_recover_slave(uint16 slave, int timeout)
+int nex_recover_slave(uint16 slave, int timeout)
 {
-   return Nexx__recover_slave(&Nexx__context, slave, timeout);
+   return nexx_recover_slave(&nexx_context, slave, timeout);
 }
 
 /** Reconfigure slave.
  *
  * @param[in] slave   = slave to reconfigure
- * @param[in] timeout = local timeout f.e. Nex_TIMEOUTRET3
+ * @param[in] timeout = local timeout f.e. NEX_TIMEOUTRET3
  * @return Slave state
- * @see Nexx__reconfig_slave
+ * @see nexx_reconfig_slave
  */
-int Nex_reconfig_slave(uint16 slave, int timeout)
+int nex_reconfig_slave(uint16 slave, int timeout)
 {
-   return Nexx__reconfig_slave(&Nexx__context, slave, timeout);
+   return nexx_reconfig_slave(&nexx_context, slave, timeout);
 }
-
+#endif

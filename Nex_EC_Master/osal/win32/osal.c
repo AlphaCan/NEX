@@ -29,10 +29,10 @@ int osal_gettimeofday (struct timeval *tv, struct timezone *tz)
    return 1;
 }
 
-Nex_timet osal_current_time (void)
+nex_timet osal_current_time (void)
 {
    struct timeval current_time;
-   Nex_timet return_value;
+   nex_timet return_value;
 
    osal_gettimeofday (&current_time, 0);
    return_value.sec = current_time.tv_sec;
@@ -40,7 +40,7 @@ Nex_timet osal_current_time (void)
    return return_value;
 }
 
-void osal_time_diff(Nex_timet *start, Nex_timet *end, Nex_timet *diff)
+void osal_time_diff(nex_timet *start, nex_timet *end, nex_timet *diff)
 {
    if (end->usec < start->usec) {
       diff->sec = end->sec - start->sec - 1;

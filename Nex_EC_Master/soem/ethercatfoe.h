@@ -16,15 +16,15 @@ extern "C"
 {
 #endif
 
+#ifdef NEX_VER1
+int nex_FOEdefinehook(void *hook);
+int nex_FOEread(uint16 slave, char *filename, uint32 password, int *psize, void *p, int timeout);
+int nex_FOEwrite(uint16 slave, char *filename, uint32 password, int psize, void *p, int timeout);
+#endif
 
-int Nex_FOEdefinehook(void *hook);
-int Nex_FOEread(uint16 slave, char *filename, uint32 password, int *psize, void *p, int timeout);
-int Nex_FOEwrite(uint16 slave, char *filename, uint32 password, int psize, void *p, int timeout);
-
-
-int Nexx__FOEdefinehook(Nexx__contextt *context, void *hook);
-int Nexx__FOEread(Nexx__contextt *context, uint16 slave, char *filename, uint32 password, int *psize, void *p, int timeout);
-int Nexx__FOEwrite(Nexx__contextt *context, uint16 slave, char *filename, uint32 password, int psize, void *p, int timeout);
+int nexx_FOEdefinehook(nexx_contextt *context, void *hook);
+int nexx_FOEread(nexx_contextt *context, uint16 slave, char *filename, uint32 password, int *psize, void *p, int timeout);
+int nexx_FOEwrite(nexx_contextt *context, uint16 slave, char *filename, uint32 password, int psize, void *p, int timeout);
 
 #ifdef __cplusplus
 }

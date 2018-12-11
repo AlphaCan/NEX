@@ -1,11 +1,15 @@
-
-/** 
- * 所有头文件
- * 
+/*
+ * Licensed under the GNU General Public License version 2 with exceptions. See
+ * LICENSE file in the project root for full license information
  */
 
-#ifndef _Nex_ETHERCAT_H
-#define _Nex_ETHERCAT_H
+/** \file
+ * \brief
+ * Headerfile for all ethercat headers
+ */
+
+#ifndef _NEX_ETHERCAT_H
+#define _NEX_ETHERCAT_H
 
 #include "ethercattype.h"
 #include "nicdrv.h"
@@ -18,4 +22,4 @@
 #include "ethercatconfig.h"
 #include "ethercatprint.h"
 
-#endif /* _Nex_ETHERCAT_H */
+#endif /* _NEX_ETHERCAT_H */

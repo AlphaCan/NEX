@@ -199,7 +199,7 @@ struct bpf_version {
  * Ethernet type, and 36 bytes that appear to be 0 in at least one capture
  * I've seen.
  */
-#define DLT_SYMANTNex_FIREWALL	99
+#define DLT_SYMANTNEX_FIREWALL	99
 
 /*
  * Values between 100 and 103 are used in capture file headers as

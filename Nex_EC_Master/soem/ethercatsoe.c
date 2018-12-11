@@ -17,13 +17,13 @@
 #include "ethercatmain.h"
 #include "ethercatsoe.h"
 
-#define Nex_SOE_MAX_DRIVES 8
+#define NEX_SOE_MAX_DRIVES 8
 
 /** SoE (Servo over EtherCAT) mailbox structure */
 PACKED_BEGIN
 typedef struct PACKED
 {
-   Nex_mbxheadert MbxHeader;
+   nex_mbxheadert MbxHeader;
    uint8         opCode         :3;
    uint8         incomplete     :1;
    uint8         error          :1;
@@ -34,7 +34,7 @@ typedef struct PACKED
       uint16     idn;
       uint16     fragmentsleft;
    };
-} Nex_SoEt;
+} nex_SoEt;
 PACKED_END
 
 /** Report SoE error.
@@ -44,9 +44,9 @@ PACKED_END
  * @param[in]  idn        = IDN that generated error
  * @param[in]  Error      = Error code, see EtherCAT documentation for list
  */
-void Nexx__SoEerror(Nexx__contextt *context, uint16 Slave, uint16 idn, uint16 Error)
+void nexx_SoEerror(nexx_contextt *context, uint16 Slave, uint16 idn, uint16 Error)
 {
-   Nex_errort Ec;
+   nex_errort Ec;
 
    memset(&Ec, 0, sizeof(Ec));
    Ec.Time = osal_current_time();
@@ -54,9 +54,9 @@ void Nexx__SoEerror(Nexx__contextt *context, uint16 Slave, uint16 idn, uint16 Er
    Ec.Index = idn;
    Ec.SubIdx = 0;
    *(context->ecaterror) = TRUE;
-   Ec.Etype = Nex_ERR_TYPE_SOE_ERROR;
+   Ec.Etype = NEX_ERR_TYPE_SOE_ERROR;
    Ec.ErrorCode = Error;
-   Nexx__pusherror(context, &Ec);
+   nexx_pusherror(context, &Ec);
 }
 
 /** SoE read, blocking.
@@ -72,32 +72,32 @@ void Nexx__SoEerror(Nexx__contextt *context, uint16 Slave, uint16 idn, uint16 Er
  * @param[in]  idn           = IDN.
  * @param[in,out] psize      = Size in bytes of parameter buffer, returns bytes read from SoE.
  * @param[out] p             = Pointer to parameter buffer
- * @param[in]  timeout       = Timeout in us, standard is Nex_TIMEOUTRXM
+ * @param[in]  timeout       = Timeout in us, standard is NEX_TIMEOUTRXM
  * @return Workcounter from last slave response
  */
-int Nexx__SoEread(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int *psize, void *p, int timeout)
+int nexx_SoEread(nexx_contextt *context, uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int *psize, void *p, int timeout)
 {
-   Nex_SoEt *SoEp, *aSoEp;
+   nex_SoEt *SoEp, *aSoEp;
    uint16 totalsize, framedatasize;
    int wkc;
    uint8 *bp;
    uint8 *mp;
    uint16 *errorcode;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_mbxbuft MbxIn, MbxOut;
    uint8 cnt;
    boolean NotLast;
 
-   Nex_clearmbx(&MbxIn);
+   nex_clearmbx(&MbxIn);
    /* Empty slave out mailbox if something is in. Timeout set to 0 */
-   wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   aSoEp = (Nex_SoEt *)&MbxIn;
-   SoEp = (Nex_SoEt *)&MbxOut;
-   SoEp->MbxHeader.length = htoes(sizeof(Nex_SoEt) - sizeof(Nex_mbxheadert));
+   wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   aSoEp = (nex_SoEt *)&MbxIn;
+   SoEp = (nex_SoEt *)&MbxOut;
+   SoEp->MbxHeader.length = htoes(sizeof(nex_SoEt) - sizeof(nex_mbxheadert));
    SoEp->MbxHeader.address = htoes(0x0000);
    SoEp->MbxHeader.priority = 0x00;
    /* get new mailbox count value, used as session handle */
-   cnt = Nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
+   cnt = nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
    context->slavelist[slave].mbx_cnt = cnt;
    SoEp->MbxHeader.mbxtype = ECT_MBXT_SOE + (cnt << 4); /* SoE */
    SoEp->opCode = ECT_SOE_READREQ;
@@ -108,18 +108,18 @@ int Nexx__SoEread(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 el
    SoEp->idn = htoes(idn);
    totalsize = 0;
    bp = p;
-   mp = (uint8 *)&MbxIn + sizeof(Nex_SoEt);
+   mp = (uint8 *)&MbxIn + sizeof(nex_SoEt);
    NotLast = TRUE;
    /* send SoE request to slave */
-   wkc = Nexx__mbxsend(context, slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+   wkc = nexx_mbxsend(context, slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
    if (wkc > 0) /* succeeded to place mailbox in slave ? */
    {
       while (NotLast)
       {
          /* clean mailboxbuffer */
-         Nex_clearmbx(&MbxIn);
+         nex_clearmbx(&MbxIn);
          /* read slave response */
-         wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, timeout);
+         wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, timeout);
          if (wkc > 0) /* succeeded to read slave response ? */
          {
             /* slave response should be SoE, ReadRes */
@@ -129,7 +129,7 @@ int Nexx__SoEread(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 el
                 (aSoEp->driveNo == driveNo) &&
                 (aSoEp->elementflags == elementflags))
             {
-               framedatasize = etohs(aSoEp->MbxHeader.length) - sizeof(Nex_SoEt)  + sizeof(Nex_mbxheadert);
+               framedatasize = etohs(aSoEp->MbxHeader.length) - sizeof(nex_SoEt)  + sizeof(nex_mbxheadert);
                totalsize += framedatasize;
                /* Does parameter fit in parameter buffer ? */
                if (totalsize <= *psize)
@@ -161,13 +161,13 @@ int Nexx__SoEread(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 el
                    (aSoEp->opCode == ECT_SOE_READRES) &&
                    (aSoEp->error == 1))
                {
-                  mp = (uint8 *)&MbxIn + (etohs(aSoEp->MbxHeader.length) + sizeof(Nex_mbxheadert) - sizeof(uint16));
+                  mp = (uint8 *)&MbxIn + (etohs(aSoEp->MbxHeader.length) + sizeof(nex_mbxheadert) - sizeof(uint16));
                   errorcode = (uint16 *)mp;
-                  Nexx__SoEerror(context, slave, idn, *errorcode);
+                  nexx_SoEerror(context, slave, idn, *errorcode);
                }
                else
                {
-                  Nexx__packeterror(context, slave, idn, 0, 1); /* Unexpected frame returned */
+                  nexx_packeterror(context, slave, idn, 0, 1); /* Unexpected frame returned */
                }
                wkc = 0;
             }
@@ -175,7 +175,7 @@ int Nexx__SoEread(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 el
          else
          {
             NotLast = FALSE;
-            Nexx__packeterror(context, slave, idn, 0, 4); /* no response */
+            nexx_packeterror(context, slave, idn, 0, 4); /* no response */
          }
       }
    }
@@ -194,27 +194,27 @@ int Nexx__SoEread(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 el
  * @param[in]  idn           = IDN.
  * @param[in]  psize         = Size in bytes of parameter buffer.
  * @param[out] p             = Pointer to parameter buffer
- * @param[in]  timeout       = Timeout in us, standard is Nex_TIMEOUTRXM
+ * @param[in]  timeout       = Timeout in us, standard is NEX_TIMEOUTRXM
  * @return Workcounter from last slave response
  */
-int Nexx__SoEwrite(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int psize, void *p, int timeout)
+int nexx_SoEwrite(nexx_contextt *context, uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int psize, void *p, int timeout)
 {
-   Nex_SoEt *SoEp, *aSoEp;
+   nex_SoEt *SoEp, *aSoEp;
    uint16 framedatasize, maxdata;
    int wkc;
    uint8 *mp;
    uint8 *hp;
    uint16 *errorcode;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_mbxbuft MbxIn, MbxOut;
    uint8 cnt;
    boolean NotLast;
 
-   Nex_clearmbx(&MbxIn);
+   nex_clearmbx(&MbxIn);
    /* Empty slave out mailbox if something is in. Timeout set to 0 */
-   wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   aSoEp = (Nex_SoEt *)&MbxIn;
-   SoEp = (Nex_SoEt *)&MbxOut;
+   wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   aSoEp = (nex_SoEt *)&MbxIn;
+   SoEp = (nex_SoEt *)&MbxOut;
    SoEp->MbxHeader.address = htoes(0x0000);
    SoEp->MbxHeader.priority = 0x00;
    SoEp->opCode = ECT_SOE_WRITEREQ;
@@ -222,8 +222,8 @@ int Nexx__SoEwrite(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 e
    SoEp->driveNo = driveNo;
    SoEp->elementflags = elementflags;
    hp = p;
-   mp = (uint8 *)&MbxOut + sizeof(Nex_SoEt);
-   maxdata = context->slavelist[slave].mbx_l - sizeof(Nex_SoEt);
+   mp = (uint8 *)&MbxOut + sizeof(nex_SoEt);
+   maxdata = context->slavelist[slave].mbx_l - sizeof(nex_SoEt);
    NotLast = TRUE;
    while (NotLast)
    {
@@ -238,9 +238,9 @@ int Nexx__SoEwrite(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 e
          SoEp->incomplete = 1;
          SoEp->fragmentsleft = psize / maxdata;
       }
-      SoEp->MbxHeader.length = htoes(sizeof(Nex_SoEt) - sizeof(Nex_mbxheadert) + framedatasize);
+      SoEp->MbxHeader.length = htoes(sizeof(nex_SoEt) - sizeof(nex_mbxheadert) + framedatasize);
       /* get new mailbox counter, used for session handle */
-      cnt = Nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
+      cnt = nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
       context->slavelist[slave].mbx_cnt = cnt;
       SoEp->MbxHeader.mbxtype = ECT_MBXT_SOE + (cnt << 4); /* SoE */
       /* copy parameter data to mailbox */
@@ -248,15 +248,15 @@ int Nexx__SoEwrite(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 e
       hp += framedatasize;
       psize -= framedatasize;
       /* send SoE request to slave */
-      wkc = Nexx__mbxsend(context, slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+      wkc = nexx_mbxsend(context, slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
       if (wkc > 0) /* succeeded to place mailbox in slave ? */
       {
-         if (!NotLast || !Nexx__mbxempty(context, slave, timeout))
+         if (!NotLast || !nexx_mbxempty(context, slave, timeout))
          {
             /* clean mailboxbuffer */
-            Nex_clearmbx(&MbxIn);
+            nex_clearmbx(&MbxIn);
             /* read slave response */
-            wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, timeout);
+            wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, timeout);
             if (wkc > 0) /* succeeded to read slave response ? */
             {
                NotLast = FALSE;
@@ -276,20 +276,20 @@ int Nexx__SoEwrite(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 e
                       (aSoEp->opCode == ECT_SOE_READRES) &&
                       (aSoEp->error == 1))
                   {
-                     mp = (uint8 *)&MbxIn + (etohs(aSoEp->MbxHeader.length) + sizeof(Nex_mbxheadert) - sizeof(uint16));
+                     mp = (uint8 *)&MbxIn + (etohs(aSoEp->MbxHeader.length) + sizeof(nex_mbxheadert) - sizeof(uint16));
                      errorcode = (uint16 *)mp;
-                     Nexx__SoEerror(context, slave, idn, *errorcode);
+                     nexx_SoEerror(context, slave, idn, *errorcode);
                   }
                   else
                   {
-                     Nexx__packeterror(context, slave, idn, 0, 1); /* Unexpected frame returned */
+                     nexx_packeterror(context, slave, idn, 0, 1); /* Unexpected frame returned */
                   }
                   wkc = 0;
                }
             }
             else
             {
-               Nexx__packeterror(context, slave, idn, 0, 4); /* no response */
+               nexx_packeterror(context, slave, idn, 0, 4); /* no response */
             }
          }
       }
@@ -309,24 +309,24 @@ int Nexx__SoEwrite(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 e
  * @param[out] Isize   = Size in bits of input mapping (AT) found
  * @return >0 if mapping succesful.
  */
-int Nexx__readIDNmap(Nexx__contextt *context, uint16 slave, int *Osize, int *Isize)
+int nexx_readIDNmap(nexx_contextt *context, uint16 slave, int *Osize, int *Isize)
 {
    int retVal = 0;
    int   wkc;
    int psize;
    int driveNr;
    uint16 entries, itemcount;
-   Nex_SoEmappingt     SoEmapping;
-   Nex_SoEattributet   SoEattribute;
+   nex_SoEmappingt     SoEmapping;
+   nex_SoEattributet   SoEattribute;
 
    *Isize = 0;
    *Osize = 0;
-   for(driveNr = 0; driveNr < Nex_SOE_MAX_DRIVES; driveNr++)
+   for(driveNr = 0; driveNr < NEX_SOE_MAX_DRIVES; driveNr++)
    {
       psize = sizeof(SoEmapping);
       /* read output mapping via SoE */
-      wkc = Nexx__SoEread(context, slave, driveNr, Nex_SOE_VALUE_B, Nex_IDN_MDTCONFIG, &psize, &SoEmapping, Nex_TIMEOUTRXM);
-      if ((wkc > 0) && (psize >= 4) && ((entries = etohs(SoEmapping.currentlength) / 2) > 0) && (entries <= Nex_SOE_MAXMAPPING))
+      wkc = nexx_SoEread(context, slave, driveNr, NEX_SOE_VALUE_B, NEX_IDN_MDTCONFIG, &psize, &SoEmapping, NEX_TIMEOUTRXM);
+      if ((wkc > 0) && (psize >= 4) && ((entries = etohs(SoEmapping.currentlength) / 2) > 0) && (entries <= NEX_SOE_MAXMAPPING))
       {
          /* command word (uint16) is always mapped but not in list */
          *Osize = 16;
@@ -334,7 +334,7 @@ int Nexx__readIDNmap(Nexx__contextt *context, uint16 slave, int *Osize, int *Isi
          {
             psize = sizeof(SoEattribute);
             /* read attribute of each IDN in mapping list */
-            wkc = Nexx__SoEread(context, slave, driveNr, Nex_SOE_ATTRIBUTE_B, SoEmapping.idn[itemcount], &psize, &SoEattribute, Nex_TIMEOUTRXM);
+            wkc = nexx_SoEread(context, slave, driveNr, NEX_SOE_ATTRIBUTE_B, SoEmapping.idn[itemcount], &psize, &SoEattribute, NEX_TIMEOUTRXM);
             if ((wkc > 0) && (!SoEattribute.list))
             {
                /* length : 0 = 8bit, 1 = 16bit .... */
@@ -344,8 +344,8 @@ int Nexx__readIDNmap(Nexx__contextt *context, uint16 slave, int *Osize, int *Isi
       }
       psize = sizeof(SoEmapping);
       /* read input mapping via SoE */
-      wkc = Nexx__SoEread(context, slave, driveNr, Nex_SOE_VALUE_B, Nex_IDN_ATCONFIG, &psize, &SoEmapping, Nex_TIMEOUTRXM);
-      if ((wkc > 0) && (psize >= 4) && ((entries = etohs(SoEmapping.currentlength) / 2) > 0) && (entries <= Nex_SOE_MAXMAPPING))
+      wkc = nexx_SoEread(context, slave, driveNr, NEX_SOE_VALUE_B, NEX_IDN_ATCONFIG, &psize, &SoEmapping, NEX_TIMEOUTRXM);
+      if ((wkc > 0) && (psize >= 4) && ((entries = etohs(SoEmapping.currentlength) / 2) > 0) && (entries <= NEX_SOE_MAXMAPPING))
       {
          /* status word (uint16) is always mapped but not in list */
          *Isize = 16;
@@ -353,7 +353,7 @@ int Nexx__readIDNmap(Nexx__contextt *context, uint16 slave, int *Osize, int *Isi
          {
             psize = sizeof(SoEattribute);
             /* read attribute of each IDN in mapping list */
-            wkc = Nexx__SoEread(context, slave, driveNr, Nex_SOE_ATTRIBUTE_B, SoEmapping.idn[itemcount], &psize, &SoEattribute, Nex_TIMEOUTRXM);
+            wkc = nexx_SoEread(context, slave, driveNr, NEX_SOE_ATTRIBUTE_B, SoEmapping.idn[itemcount], &psize, &SoEattribute, NEX_TIMEOUTRXM);
             if ((wkc > 0) && (!SoEattribute.list))
             {
                /* length : 0 = 8bit, 1 = 16bit .... */
@@ -371,19 +371,19 @@ int Nexx__readIDNmap(Nexx__contextt *context, uint16 slave, int *Osize, int *Isi
    return retVal;
 }
 
-
-int Nex_SoEread(uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int *psize, void *p, int timeout)
+#ifdef NEX_VER1
+int nex_SoEread(uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int *psize, void *p, int timeout)
 {
-   return Nexx__SoEread(&Nexx__context, slave, driveNo, elementflags, idn, psize, p, timeout);
+   return nexx_SoEread(&nexx_context, slave, driveNo, elementflags, idn, psize, p, timeout);
 }
 
-int Nex_SoEwrite(uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int psize, void *p, int timeout)
+int nex_SoEwrite(uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int psize, void *p, int timeout)
 {
-   return Nexx__SoEwrite(&Nexx__context, slave, driveNo, elementflags, idn, psize, p, timeout);
+   return nexx_SoEwrite(&nexx_context, slave, driveNo, elementflags, idn, psize, p, timeout);
 }
 
-int Nex_readIDNmap(uint16 slave, int *Osize, int *Isize)
+int nex_readIDNmap(uint16 slave, int *Osize, int *Isize)
 {
-   return Nexx__readIDNmap(&Nexx__context, slave, Osize, Isize);
+   return nexx_readIDNmap(&nexx_context, slave, Osize, Isize);
 }
-
+#endif

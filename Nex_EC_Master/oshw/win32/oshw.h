@@ -22,8 +22,8 @@ extern "C"
 
 uint16 oshw_htons (uint16 hostshort);
 uint16 oshw_ntohs (uint16 networkshort);
-Nex_adaptert * oshw_find_adapters (void);
-void oshw_free_adapters (Nex_adaptert * adapter);
+nex_adaptert * oshw_find_adapters (void);
+void oshw_free_adapters (nex_adaptert * adapter);
 
 #ifdef __cplusplus
 }

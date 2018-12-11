@@ -8,15 +8,15 @@
  * General typedefs and defines for EtherCAT.
  *
  * Defines that could need optimisation for specific applications
- * are the Nex_TIMEOUTxxx. Assumptions for the standard settings are a
+ * are the NEX_TIMEOUTxxx. Assumptions for the standard settings are a
  * standard linux PC or laptop and a wired connection to maximal 100 slaves.
  * For use with wireless connections or lots of slaves the timeouts need
  * increasing. For fast systems running Xenomai and RT-net or alike the
  * timeouts need to be shorter.
  */
 
-#ifndef _Nex_TYPE_H
-#define _Nex_TYPE_H
+#ifndef _NEX_TYPE_H
+#define _NEX_TYPE_H
 
 #ifdef __cplusplus
 extern "C"
@@ -24,56 +24,56 @@ extern "C"
 #endif
 
 /** Define Little or Big endian target */
-#define Nex_LITTLE_ENDIAN
+#define NEX_LITTLE_ENDIAN
 
-/** define Nex_VER1 if version 1 default context and functions are needed
- * comment if application uses only Nexx__ functions and own context */
-
+/** define NEX_VER1 if version 1 default context and functions are needed
+ * comment if application uses only nexx_ functions and own context */
+#define NEX_VER1
 
 #include "osal.h"
 
 /** return value general error */
-#define Nex_ERROR           -3
+#define NEX_ERROR           -3
 /** return value no frame returned */
-#define Nex_NOFRAME         -1
+#define NEX_NOFRAME         -1
 /** return value unknown frame received */
-#define Nex_OTHERFRAME      -2
+#define NEX_OTHERFRAME      -2
 /** maximum EtherCAT frame length in bytes */
-#define Nex_MAXECATFRAME    1518
+#define NEX_MAXECATFRAME    1518
 /** maximum EtherCAT LRW frame length in bytes */
 /* MTU - Ethernet header - length - datagram header - WCK - FCS */
-#define Nex_MAXLRWDATA      (Nex_MAXECATFRAME - 14 - 2 - 10 - 2 - 4)
+#define NEX_MAXLRWDATA      (NEX_MAXECATFRAME - 14 - 2 - 10 - 2 - 4)
 /** size of DC datagram used in first LRW frame */
-#define Nex_FIRSTDCDATAGRAM 20
+#define NEX_FIRSTDCDATAGRAM 20
 /** standard frame buffer size in bytes */
-#define Nex_BUFSIZE         Nex_MAXECATFRAME
+#define NEX_BUFSIZE         NEX_MAXECATFRAME
 /** datagram type EtherCAT */
-#define Nex_ECATTYPE        0x1000
+#define NEX_ECATTYPE        0x1000
 /** number of frame buffers per channel (tx, rx1 rx2) */
-#define Nex_MAXBUF          16
+#define NEX_MAXBUF          16
 /** timeout value in us for tx frame to return to rx */
-#define Nex_TIMEOUTRET      2000
+#define NEX_TIMEOUTRET      2000
 /** timeout value in us for safe data transfer, max. triple retry */
-#define Nex_TIMEOUTRET3     (Nex_TIMEOUTRET * 3)
+#define NEX_TIMEOUTRET3     (NEX_TIMEOUTRET * 3)
 /** timeout value in us for return "safe" variant (f.e. wireless) */
-#define Nex_TIMEOUTSAFE     20000
+#define NEX_TIMEOUTSAFE     20000
 /** timeout value in us for EEPROM access */
-#define Nex_TIMEOUTEEP      20000
+#define NEX_TIMEOUTEEP      20000
 /** timeout value in us for tx mailbox cycle */
-#define Nex_TIMEOUTTXM      20000
+#define NEX_TIMEOUTTXM      20000
 /** timeout value in us for rx mailbox cycle */
-#define Nex_TIMEOUTRXM      700000
+#define NEX_TIMEOUTRXM      700000
 /** timeout value in us for check statechange */
-#define Nex_TIMEOUTSTATE    2000000
+#define NEX_TIMEOUTSTATE    2000000
 /** size of EEPROM bitmap cache */
-#define Nex_MAXEEPBITMAP    128
+#define NEX_MAXEEPBITMAP    128
 /** size of EEPROM cache buffer */
-#define Nex_MAXEEPBUF       Nex_MAXEEPBITMAP << 5
+#define NEX_MAXEEPBUF       NEX_MAXEEPBITMAP << 5
 /** default number of retries if wkc <= 0 */
-#define Nex_DEFAULTRETRIES  3
+#define NEX_DEFAULTRETRIES  3
 
 /** definition for frame buffers */
-typedef uint8 Nex_bufT[Nex_BUFSIZE];
+typedef uint8 nex_bufT[NEX_BUFSIZE];
 
 /** ethernet header definition */
 PACKED_BEGIN
@@ -85,11 +85,11 @@ typedef struct PACKED
    uint16  sa0,sa1,sa2;
    /** ethernet type */
    uint16  etype;
-} Nex_etherheadert;
+} nex_etherheadert;
 PACKED_END
 
 /** ethernet header size */
-#define ETH_HEADERSIZE      sizeof(Nex_etherheadert)
+#define ETH_HEADERSIZE      sizeof(nex_etherheadert)
 
 /** EtherCAT datagram header definition */
 PACKED_BEGIN
@@ -97,7 +97,7 @@ typedef struct PACKED
 {
    /** length of EtherCAT datagram */
    uint16  elength;
-   /** EtherCAT command, see Nex_cmdtype */
+   /** EtherCAT command, see nex_cmdtype */
    uint8   command;
    /** index, used in SOEM for Tx to Rx recombination */
    uint8   index;
@@ -109,71 +109,71 @@ typedef struct PACKED
    uint16  dlength;
    /** interrupt, currently unused */
    uint16  irpt;
-} Nex_comt;
+} nex_comt;
 PACKED_END
 
 /** EtherCAT header size */
-#define Nex_HEADERSIZE       sizeof(Nex_comt)
-/** size of Nex_comt.elength item in EtherCAT header */
-#define Nex_ELENGTHSIZE      sizeof(uint16)
+#define NEX_HEADERSIZE       sizeof(nex_comt)
+/** size of nex_comt.elength item in EtherCAT header */
+#define NEX_ELENGTHSIZE      sizeof(uint16)
 /** offset position of command in EtherCAT header */
-#define Nex_CMDOFFSET        Nex_ELENGTHSIZE
+#define NEX_CMDOFFSET        NEX_ELENGTHSIZE
 /** size of workcounter item in EtherCAT datagram */
-#define Nex_WKCSIZE          sizeof(uint16)
-/** definition of datagram follows bit in Nex_comt.dlength */
-#define Nex_DATAGRAMFOLLOWS  (1 << 15)
+#define NEX_WKCSIZE          sizeof(uint16)
+/** definition of datagram follows bit in nex_comt.dlength */
+#define NEX_DATAGRAMFOLLOWS  (1 << 15)
 
 /** Possible error codes returned. */
 typedef enum
 {
    /** No error */
-   Nex_ERR_OK         = 0,
+   NEX_ERR_OK         = 0,
    /** Library already initialized. */
-   Nex_ERR_ALREADY_INITIALIZED,
+   NEX_ERR_ALREADY_INITIALIZED,
    /** Library not initialized. */
-   Nex_ERR_NOT_INITIALIZED,
+   NEX_ERR_NOT_INITIALIZED,
    /** Timeout occurred during execution of the function. */
-   Nex_ERR_TIMEOUT,
+   NEX_ERR_TIMEOUT,
    /** No slaves were found. */
-   Nex_ERR_NO_SLAVES,
+   NEX_ERR_NO_SLAVES,
    /** Function failed. */
-   Nex_ERR_NOK
-} Nex_err;
+   NEX_ERR_NOK
+} nex_err;
 
 /** Possible EtherCAT slave states */
 typedef enum
 {
    /** No valid state. */
-   Nex_STATE_NONE           = 0x00,
+   NEX_STATE_NONE           = 0x00,
    /** Init state*/
-   Nex_STATE_INIT           = 0x01,
+   NEX_STATE_INIT           = 0x01,
    /** Pre-operational. */
-   Nex_STATE_PRE_OP         = 0x02,
+   NEX_STATE_PRE_OP         = 0x02,
    /** Boot state*/
-   Nex_STATE_BOOT           = 0x03,
+   NEX_STATE_BOOT           = 0x03,
    /** Safe-operational. */
-   Nex_STATE_SAFE_OP        = 0x04,
+   NEX_STATE_SAFE_OP        = 0x04,
    /** Operational */
-   Nex_STATE_OPERATIONAL    = 0x08,
+   NEX_STATE_OPERATIONAL    = 0x08,
    /** Error or ACK error */
-   Nex_STATE_ACK            = 0x10,
-   Nex_STATE_ERROR          = 0x10
-} Nex_state;
+   NEX_STATE_ACK            = 0x10,
+   NEX_STATE_ERROR          = 0x10
+} nex_state;
 
 /** Possible buffer states */
 typedef enum
 {
    /** Empty */
-   Nex_BUF_EMPTY        = 0x00,
+   NEX_BUF_EMPTY        = 0x00,
    /** Allocated, but not filled */
-   Nex_BUF_ALLOC        = 0x01,
+   NEX_BUF_ALLOC        = 0x01,
    /** Transmitted */
-   Nex_BUF_TX           = 0x02,
+   NEX_BUF_TX           = 0x02,
    /** Received, but not consumed */
-   Nex_BUF_RCVD         = 0x03,
+   NEX_BUF_RCVD         = 0x03,
    /** Cycle completed */
-   Nex_BUF_COMPLETE     = 0x04
-} Nex_bufstate;
+   NEX_BUF_COMPLETE     = 0x04
+} nex_bufstate;
 
 /** Ethercat data types */
 typedef enum
@@ -205,65 +205,65 @@ typedef enum
    ECT_BIT6            = 0x0035,
    ECT_BIT7            = 0x0036,
    ECT_BIT8            = 0x0037
-} Nex_datatype;
+} nex_datatype;
 
 /** Ethercat command types */
 typedef enum
 {
    /** No operation */
-   Nex_CMD_NOP          = 0x00,
+   NEX_CMD_NOP          = 0x00,
    /** Auto Increment Read */
-   Nex_CMD_APRD,
+   NEX_CMD_APRD,
    /** Auto Increment Write */
-   Nex_CMD_APWR,
+   NEX_CMD_APWR,
    /** Auto Increment Read Write */
-   Nex_CMD_APRW,
+   NEX_CMD_APRW,
    /** Configured Address Read */
-   Nex_CMD_FPRD,
+   NEX_CMD_FPRD,
    /** Configured Address Write */
-   Nex_CMD_FPWR,
+   NEX_CMD_FPWR,
    /** Configured Address Read Write */
-   Nex_CMD_FPRW,
+   NEX_CMD_FPRW,
    /** Broadcast Read */
-   Nex_CMD_BRD,
+   NEX_CMD_BRD,
    /** Broadcast Write */
-   Nex_CMD_BWR,
+   NEX_CMD_BWR,
    /** Broadcast Read Write */
-   Nex_CMD_BRW,
+   NEX_CMD_BRW,
    /** Logical Memory Read */
-   Nex_CMD_LRD,
+   NEX_CMD_LRD,
    /** Logical Memory Write */
-   Nex_CMD_LWR,
+   NEX_CMD_LWR,
    /** Logical Memory Read Write */
-   Nex_CMD_LRW,
+   NEX_CMD_LRW,
    /** Auto Increment Read Multiple Write */
-   Nex_CMD_ARMW,
+   NEX_CMD_ARMW,
    /** Configured Read Multiple Write */
-   Nex_CMD_FRMW
+   NEX_CMD_FRMW
    /** Reserved */
-} Nex_cmdtype;
+} nex_cmdtype;
 
 /** Ethercat EEprom command types */
 typedef enum
 {
    /** No operation */
-   Nex_ECMD_NOP         = 0x0000,
+   NEX_ECMD_NOP         = 0x0000,
    /** Read */
-   Nex_ECMD_READ        = 0x0100,
+   NEX_ECMD_READ        = 0x0100,
    /** Write */
-   Nex_ECMD_WRITE       = 0x0201,
+   NEX_ECMD_WRITE       = 0x0201,
    /** Reload */
-   Nex_ECMD_RELOAD      = 0x0300
-} Nex_ecmdtype;
+   NEX_ECMD_RELOAD      = 0x0300
+} nex_ecmdtype;
 
 /** EEprom state machine read size */
-#define Nex_ESTAT_R64    0x0040
+#define NEX_ESTAT_R64    0x0040
 /** EEprom state machine busy flag */
-#define Nex_ESTAT_BUSY   0x8000
+#define NEX_ESTAT_BUSY   0x8000
 /** EEprom state machine error flag mask */
-#define Nex_ESTAT_EMASK  0x7800
+#define NEX_ESTAT_EMASK  0x7800
 /** EEprom state machine error acknowledge */
-#define Nex_ESTAT_NACK   0x2000
+#define NEX_ESTAT_NACK   0x2000
 
 /* Ethercat SSI (Slave Information Interface) */
 
@@ -330,23 +330,15 @@ enum
    ECT_COES_SDOINFO
 };
 
-/** COEÃüÁî */
+/** CoE SDO commands */
 enum
 {
-//	0	1	2	3	4	5	6	7
-//	1	0	0	0	0	1	0	0
    ECT_SDO_DOWN_INIT    = 0x21,
-//	1	1	0	0	0	1	0	0
    ECT_SDO_DOWN_EXP     = 0x23,
-//	0	0	0	0	0	1	0	0
    ECT_SDO_DOWN_INIT_CA = 0x31,
-//	0	0	0	0	0	0	1	0
    ECT_SDO_UP_REQ       = 0x40,
-//	0	0	0	0	1	0	1	0
    ECT_SDO_UP_REQ_CA    = 0x50,
-//	0	0	0	0	0	1	1	0
    ECT_SDO_SEG_UP_REQ   = 0x60,
-//	0	0	0	0	0	0	0	1
    ECT_SDO_ABORT        = 0x80
 };
 
@@ -458,23 +450,23 @@ enum
 /** Error types */
 typedef enum
 {
-   Nex_ERR_TYPE_SDO_ERROR         = 0,
-   Nex_ERR_TYPE_EMERGENCY         = 1,
-   Nex_ERR_TYPE_PACKET_ERROR      = 3,
-   Nex_ERR_TYPE_SDOINFO_ERROR     = 4,
-   Nex_ERR_TYPE_FOE_ERROR         = 5,
-   Nex_ERR_TYPE_FOE_BUF2SMALL     = 6,
-   Nex_ERR_TYPE_FOE_PACKETNUMBER  = 7,
-   Nex_ERR_TYPE_SOE_ERROR         = 8,
-   Nex_ERR_TYPE_MBX_ERROR         = 9,
-   Nex_ERR_TYPE_FOE_FILE_NOTFOUND = 10
-} Nex_err_type;
+   NEX_ERR_TYPE_SDO_ERROR         = 0,
+   NEX_ERR_TYPE_EMERGENCY         = 1,
+   NEX_ERR_TYPE_PACKET_ERROR      = 3,
+   NEX_ERR_TYPE_SDOINFO_ERROR     = 4,
+   NEX_ERR_TYPE_FOE_ERROR         = 5,
+   NEX_ERR_TYPE_FOE_BUF2SMALL     = 6,
+   NEX_ERR_TYPE_FOE_PACKETNUMBER  = 7,
+   NEX_ERR_TYPE_SOE_ERROR         = 8,
+   NEX_ERR_TYPE_MBX_ERROR         = 9,
+   NEX_ERR_TYPE_FOE_FILE_NOTFOUND = 10
+} nex_err_type;
 
 /** Struct to retrieve errors. */
 typedef struct
 {
    /** Time at which the error was generated. */
-   Nex_timet Time;
+   nex_timet Time;
    /** Signal bit, error set but not read */
    boolean     Signal;
    /** Slave number that generated the error */
@@ -484,7 +476,7 @@ typedef struct
    /** CoE SDO subindex that generated the error */
    uint8       SubIdx;
    /** Type of error */
-   Nex_err_type Etype;
+   nex_err_type Etype;
    union
    {
       /** General abortcode */
@@ -499,7 +491,7 @@ typedef struct
          uint16  w2;
       };
    };
-} Nex_errort;
+} nex_errort;
 
 /** Helper macros */
 /** Macro to make a word from 2 bytes */
@@ -524,7 +516,7 @@ typedef struct
 #define put_unaligned64(val, ptr)        \
   (memcpy((ptr), &(val), 8))
 
-#if !defined(Nex_BIG_ENDIAN) && defined(Nex_LITTLE_ENDIAN)
+#if !defined(NEX_BIG_ENDIAN) && defined(NEX_LITTLE_ENDIAN)
 
   #define htoes(A) (A)
   #define htoel(A) (A)
@@ -533,7 +525,7 @@ typedef struct
   #define etohl(A) (A)
   #define etohll(A) (A)
 
-#elif !defined(Nex_LITTLE_ENDIAN) && defined(Nex_BIG_ENDIAN)
+#elif !defined(NEX_LITTLE_ENDIAN) && defined(NEX_BIG_ENDIAN)
 
   #define htoes(A) ((((uint16)(A) & 0xff00) >> 8) | \
                     (((uint16)(A) & 0x00ff) << 8))
@@ -556,7 +548,7 @@ typedef struct
 
 #else
 
-  #error "Must define one of Nex_BIG_ENDIAN or Nex_LITTLE_ENDIAN"
+  #error "Must define one of NEX_BIG_ENDIAN or NEX_LITTLE_ENDIAN"
 
 #endif
 
@@ -564,4 +556,4 @@ typedef struct
 }
 #endif
 
-#endif /* _Nex_TYPE_H */
+#endif /* _NEX_TYPE_H */

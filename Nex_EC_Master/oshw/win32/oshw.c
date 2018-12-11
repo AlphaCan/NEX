@@ -32,15 +32,15 @@ uint16 oshw_ntohs (uint16 network)
 /* Create list over available network adapters.
  * @return First element in linked list of adapters
  */
-Nex_adaptert * oshw_find_adapters (void)
+nex_adaptert * oshw_find_adapters (void)
 {
    int i = 0;
    int ret = 0;
    pcap_if_t *alldevs;
    pcap_if_t *d;
-   Nex_adaptert * adapter;
-   Nex_adaptert * prev_adapter;
-   Nex_adaptert * ret_adapter = NULL;
+   nex_adaptert * adapter;
+   nex_adaptert * prev_adapter;
+   nex_adaptert * ret_adapter = NULL;
    char errbuf[PCAP_ERRBUF_SIZE];
    size_t string_len;
 
@@ -55,7 +55,7 @@ Nex_adaptert * oshw_find_adapters (void)
     */
    for(d= alldevs; d != NULL; d= d->next)
    {
-      adapter = (Nex_adaptert *)malloc(sizeof(Nex_adaptert));
+      adapter = (nex_adaptert *)malloc(sizeof(nex_adaptert));
       /* If we got more than one adapter save link list pointer to previous
        * adapter.
        * Else save as pointer to return.
@@ -74,9 +74,9 @@ Nex_adaptert * oshw_find_adapters (void)
       if (d->name)
       {
          string_len = strlen(d->name);
-         if (string_len > (Nex_MAXLEN_ADAPTERNAME - 1))
+         if (string_len > (NEX_MAXLEN_ADAPTERNAME - 1))
          {
-            string_len = Nex_MAXLEN_ADAPTERNAME - 1;
+            string_len = NEX_MAXLEN_ADAPTERNAME - 1;
          }
          strncpy(adapter->name, d->name,string_len);
          adapter->name[string_len] = '\0';
@@ -88,9 +88,9 @@ Nex_adaptert * oshw_find_adapters (void)
       if (d->description)
       {
          string_len = strlen(d->description);
-         if (string_len > (Nex_MAXLEN_ADAPTERNAME - 1))
+         if (string_len > (NEX_MAXLEN_ADAPTERNAME - 1))
          {
-            string_len = Nex_MAXLEN_ADAPTERNAME - 1;
+            string_len = NEX_MAXLEN_ADAPTERNAME - 1;
          }
          strncpy(adapter->desc, d->description,string_len);
          adapter->desc[string_len] = '\0';
@@ -110,11 +110,11 @@ Nex_adaptert * oshw_find_adapters (void)
 
 /** Free memory allocated memory used by adapter collection.
  * @param[in] adapter = First element in linked list of adapters
- * Nex_NOFRAME.
+ * NEX_NOFRAME.
  */
-void oshw_free_adapters (Nex_adaptert * adapter)
+void oshw_free_adapters (nex_adaptert * adapter)
 {
-   Nex_adaptert * next_adapter;
+   nex_adaptert * next_adapter;
    /* Iterate the linked list and free all elemnts holding
     * adapter information
     */

@@ -16,28 +16,26 @@ extern "C"
 {
 #endif
 
-#define Nex_NODEOFFSET      0x1000
-#define Nex_TEMPNODE        0xffff
+#define NEX_NODEOFFSET      0x1000
+#define NEX_TEMPNODE        0xffff
 
+#ifdef NEX_VER1
+int nex_config_init();
+int nex_config_map(void *pIOmap);
+int nex_config_overlap_map(void *pIOmap);
+int nex_config_map_group(void *pIOmap, uint8 group);
+int nex_config_overlap_map_group(void *pIOmap, uint8 group);
+int nex_config(void *pIOmap);
+int nex_config_overlap(void *pIOmap);
+int nex_recover_slave(uint16 slave, int timeout);
+int nex_reconfig_slave(uint16 slave, int timeout);
+#endif
 
-//int Nex_config_init(uint8 usetable);
-int Nex_config_init(void);
-int Nex_config_map(void *pIOmap);
-int Nex_config_overlap_map(void *pIOmap);
-int Nex_config_map_group(void *pIOmap, uint8 group);
-int Nex_config_overlap_map_group(void *pIOmap, uint8 group);
-int Nex_config(void *pIOmap);
-int Nex_config_overlap(void *pIOmap);
-int Nex_recover_slave(uint16 slave, int timeout);
-int Nex_reconfig_slave(uint16 slave, int timeout);
-
-
-//int Nexx__config_init(Nexx__contextt *context, uint8 usetable);
-int Nexx__config_init(Nexx__contextt *context);
-int Nexx__config_map_group(Nexx__contextt *context, void *pIOmap, uint8 group);
-int Nexx__config_overlap_map_group(Nexx__contextt *context, void *pIOmap, uint8 group);
-int Nexx__recover_slave(Nexx__contextt *context, uint16 slave, int timeout);
-int Nexx__reconfig_slave(Nexx__contextt *context, uint16 slave, int timeout);
+int nexx_config_init(nexx_contextt *context);
+int nexx_config_map_group(nexx_contextt *context, void *pIOmap, uint8 group);
+int nexx_config_overlap_map_group(nexx_contextt *context, void *pIOmap, uint8 group);
+int nexx_recover_slave(nexx_contextt *context, uint16 slave, int timeout);
+int nexx_reconfig_slave(nexx_contextt *context, uint16 slave, int timeout);
 
 #ifdef __cplusplus
 }

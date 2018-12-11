@@ -17,7 +17,7 @@
 #include "ethercattype.h"
 #include "ethercatmain.h"
 
-#define Nex_MAXERRORNAME 127
+#define NEX_MAXERRORNAME 127
 
 /** SDO error list type definition */
 typedef struct
@@ -25,8 +25,8 @@ typedef struct
    /** Error code returned from SDO */
    uint32        errorcode;
    /** Readable error description */
-   char          errordescription[Nex_MAXERRORNAME + 1];
-} Nex_sdoerrorlist_t;
+   char          errordescription[NEX_MAXERRORNAME + 1];
+} nex_sdoerrorlist_t;
 
 /** AL status code list type definition */
 typedef struct
@@ -34,8 +34,8 @@ typedef struct
    /** AL status code */
    uint16        ALstatuscode;
    /** Readable description */
-   char          ALstatuscodedescription[Nex_MAXERRORNAME + 1];
-} Nex_ALstatuscodelist_t;
+   char          ALstatuscodedescription[NEX_MAXERRORNAME + 1];
+} nex_ALstatuscodelist_t;
 
 /** SoE error list type definition */
 typedef struct
@@ -43,8 +43,8 @@ typedef struct
    /** SoE error code */
    uint16        errorcode;
    /** Readable description */
-   char          errordescription[Nex_MAXERRORNAME + 1];
-} Nex_soeerrorlist_t;
+   char          errordescription[NEX_MAXERRORNAME + 1];
+} nex_soeerrorlist_t;
 
 /** MBX error list type definition */
 typedef struct
@@ -52,13 +52,13 @@ typedef struct
    /** MBX error code */
    uint16              errorcode;
    /** Readable description */
-   char                errordescription[Nex_MAXERRORNAME + 1];
-} Nex_mbxerrorlist_t;
+   char                errordescription[NEX_MAXERRORNAME + 1];
+} nex_mbxerrorlist_t;
 
-char estring[Nex_MAXERRORNAME];
+char estring[NEX_MAXERRORNAME];
 
 /** SDO error list definition */
-const Nex_sdoerrorlist_t Nex_sdoerrorlist[] = {
+const nex_sdoerrorlist_t nex_sdoerrorlist[] = {
    {0x00000000, "No error" },
    {0x05030000, "Toggle bit not changed" },
    {0x05040000, "SDO protocol timeout" },
@@ -94,7 +94,7 @@ const Nex_sdoerrorlist_t Nex_sdoerrorlist[] = {
 };
 
 /** AL status code list definition */
-const Nex_ALstatuscodelist_t Nex_ALstatuscodelist[] = {
+const nex_ALstatuscodelist_t nex_ALstatuscodelist[] = {
    {0x0000 , "No error" },
    {0x0001 , "Unspecified error" },
    {0x0002 , "No memory" },
@@ -151,7 +151,7 @@ const Nex_ALstatuscodelist_t Nex_ALstatuscodelist[] = {
 };
 
 /** SoE error list definition */
-const Nex_soeerrorlist_t Nex_soeerrorlist[] = {
+const nex_soeerrorlist_t nex_soeerrorlist[] = {
    {0x0000, "No error" },
    {0x1001, "No IDN" },
    {0x1009, "Invalid access to element 1" },
@@ -206,7 +206,7 @@ const Nex_soeerrorlist_t Nex_soeerrorlist[] = {
 };
 
 /** MBX error list definition */
-const Nex_mbxerrorlist_t Nex_mbxerrorlist[] = {
+const nex_mbxerrorlist_t nex_mbxerrorlist[] = {
    {0x0000, "No error" },
    {0x0001, "Syntax of 6 octet Mailbox Header is wrong" },
    {0x0002, "The mailbox protocol is not supported" },
@@ -224,17 +224,17 @@ const Nex_mbxerrorlist_t Nex_mbxerrorlist[] = {
  * @param[in] sdoerrorcode   = SDO error code as defined in EtherCAT protocol
  * @return readable string
  */
-const char* Nex_sdoerror2string( uint32 sdoerrorcode)
+const char* nex_sdoerror2string( uint32 sdoerrorcode)
 {
    int i = 0;
 
-   while ( (Nex_sdoerrorlist[i].errorcode != 0xffffffffUL) &&
-           (Nex_sdoerrorlist[i].errorcode != sdoerrorcode) )
+   while ( (nex_sdoerrorlist[i].errorcode != 0xffffffffUL) &&
+           (nex_sdoerrorlist[i].errorcode != sdoerrorcode) )
    {
       i++;
    }
 
-   return Nex_sdoerrorlist[i].errordescription;
+   return nex_sdoerrorlist[i].errordescription;
 }
 
 /** Look up text string that belongs to AL status code.
@@ -242,17 +242,17 @@ const char* Nex_sdoerror2string( uint32 sdoerrorcode)
  * @param[in] ALstatuscode   = AL status code as defined in EtherCAT protocol
  * @return readable string
  */
-char* Nex_ALstatuscode2string( uint16 ALstatuscode)
+char* nex_ALstatuscode2string( uint16 ALstatuscode)
 {
    int i = 0;
 
-   while ( (Nex_ALstatuscodelist[i].ALstatuscode != 0xffff) &&
-           (Nex_ALstatuscodelist[i].ALstatuscode != ALstatuscode) )
+   while ( (nex_ALstatuscodelist[i].ALstatuscode != 0xffff) &&
+           (nex_ALstatuscodelist[i].ALstatuscode != ALstatuscode) )
    {
       i++;
    }
 
-   return (char *) Nex_ALstatuscodelist[i].ALstatuscodedescription;
+   return (char *) nex_ALstatuscodelist[i].ALstatuscodedescription;
 }
 
 /** Look up text string that belongs to SoE error code.
@@ -260,17 +260,17 @@ char* Nex_ALstatuscode2string( uint16 ALstatuscode)
  * @param[in] errorcode   = SoE error code as defined in EtherCAT protocol
  * @return readable string
  */
-char* Nex_soeerror2string( uint16 errorcode)
+char* nex_soeerror2string( uint16 errorcode)
 {
    int i = 0;
 
-   while ( (Nex_soeerrorlist[i].errorcode != 0xffff) &&
-           (Nex_soeerrorlist[i].errorcode != errorcode) )
+   while ( (nex_soeerrorlist[i].errorcode != 0xffff) &&
+           (nex_soeerrorlist[i].errorcode != errorcode) )
    {
       i++;
    }
 
-   return (char *) Nex_soeerrorlist[i].errordescription;
+   return (char *) nex_soeerrorlist[i].errordescription;
 }
 
 /** Look up text string that belongs to MBX error code.
@@ -278,68 +278,68 @@ char* Nex_soeerror2string( uint16 errorcode)
  * @param[in] errorcode   = MBX error code as defined in EtherCAT protocol
  * @return readable string
  */
-char* Nex_mbxerror2string( uint16 errorcode)
+char* nex_mbxerror2string( uint16 errorcode)
 {
    int i = 0;
 
-   while ( (Nex_mbxerrorlist[i].errorcode != 0xffff) &&
-           (Nex_mbxerrorlist[i].errorcode != errorcode) )
+   while ( (nex_mbxerrorlist[i].errorcode != 0xffff) &&
+           (nex_mbxerrorlist[i].errorcode != errorcode) )
    {
       i++;
    }
 
-   return (char *) Nex_mbxerrorlist[i].errordescription;
+   return (char *) nex_mbxerrorlist[i].errordescription;
 }
 
-/** Look up error in Nex_errorlist and convert to text string.
+/** Look up error in nex_errorlist and convert to text string.
  *
  * @param[in]  context        = context struct
  * @return readable string
  */
-char* Nexx__elist2string(Nexx__contextt *context)
+char* nexx_elist2string(nexx_contextt *context)
 {
-   Nex_errort Ec;
+   nex_errort Ec;
    char timestr[20];
 
-   if (Nexx__poperror(context, &Ec))
+   if (nexx_poperror(context, &Ec))
    {
       sprintf(timestr, "Time:%12.3f", Ec.Time.sec + (Ec.Time.usec / 1000000.0) );
       switch (Ec.Etype)
       {
-         case Nex_ERR_TYPE_SDO_ERROR:
+         case NEX_ERR_TYPE_SDO_ERROR:
          {
             sprintf(estring, "%s SDO slave:%d index:%4.4x.%2.2x error:%8.8x %s\n",
-                    timestr, Ec.Slave, Ec.Index, Ec.SubIdx, (unsigned)Ec.AbortCode, Nex_sdoerror2string(Ec.AbortCode));
+                    timestr, Ec.Slave, Ec.Index, Ec.SubIdx, (unsigned)Ec.AbortCode, nex_sdoerror2string(Ec.AbortCode));
             break;
          }
-         case Nex_ERR_TYPE_EMERGENCY:
+         case NEX_ERR_TYPE_EMERGENCY:
          {
             sprintf(estring, "%s EMERGENCY slave:%d error:%4.4x\n",
                     timestr, Ec.Slave, Ec.ErrorCode);
             break;
          }
-         case Nex_ERR_TYPE_PACKET_ERROR:
+         case NEX_ERR_TYPE_PACKET_ERROR:
          {
             sprintf(estring, "%s PACKET slave:%d index:%4.4x.%2.2x error:%d\n",
                     timestr, Ec.Slave, Ec.Index, Ec.SubIdx, Ec.ErrorCode);
             break;
          }
-         case Nex_ERR_TYPE_SDOINFO_ERROR:
+         case NEX_ERR_TYPE_SDOINFO_ERROR:
          {
             sprintf(estring, "%s SDO slave:%d index:%4.4x.%2.2x error:%8.8x %s\n",
-                    timestr, Ec.Slave, Ec.Index, Ec.SubIdx, (unsigned)Ec.AbortCode, Nex_sdoerror2string(Ec.AbortCode));
+                    timestr, Ec.Slave, Ec.Index, Ec.SubIdx, (unsigned)Ec.AbortCode, nex_sdoerror2string(Ec.AbortCode));
             break;
          }
-         case Nex_ERR_TYPE_SOE_ERROR:
+         case NEX_ERR_TYPE_SOE_ERROR:
          {
             sprintf(estring, "%s SoE slave:%d IDN:%4.4x error:%4.4x %s\n",
-                    timestr, Ec.Slave, Ec.Index, (unsigned)Ec.AbortCode, Nex_soeerror2string(Ec.ErrorCode));
+                    timestr, Ec.Slave, Ec.Index, (unsigned)Ec.AbortCode, nex_soeerror2string(Ec.ErrorCode));
             break;
          }
-         case Nex_ERR_TYPE_MBX_ERROR:
+         case NEX_ERR_TYPE_MBX_ERROR:
          {
             sprintf(estring, "%s MBX slave:%d error:%4.4x %s\n",
-                    timestr, Ec.Slave, Ec.ErrorCode, Nex_mbxerror2string(Ec.ErrorCode));
+                    timestr, Ec.Slave, Ec.ErrorCode, nex_mbxerror2string(Ec.ErrorCode));
             break;
          }
          default:
@@ -357,9 +357,9 @@ char* Nexx__elist2string(Nexx__contextt *context)
    }
 }
 
-
-char* Nex_elist2string(void)
+#ifdef NEX_VER1
+char* nex_elist2string(void)
 {
-   return Nexx__elist2string(&Nexx__context);
+   return nexx_elist2string(&nexx_context);
 }
-
+#endif

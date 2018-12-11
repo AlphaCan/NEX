@@ -1,10 +1,17 @@
-﻿/** 
- * 
- * 实现EtherCAT最基本的功能
+/*
+ * Licensed under the GNU General Public License version 2 with exceptions. See
+ * LICENSE file in the project root for full license information
+ */
+
+/** \file
+ * \brief
+ * Base EtherCAT functions.
  *
- *在以太网帧中设置数据报。
- * EtherCAT数据报原语，广播，自动增量，配置和
- *逻辑寻址数据传输。 所有基本传输都是阻塞的，因此请等待帧返回主服务器或超时。
+ * Setting up a datagram in an ethernet frame.
+ * EtherCAT datagram primitives, broadcast, auto increment, configured and
+ * logical addressed data transfers. All base transfers are blocking, so
+ * wait for the frame to be returned to the master or timeout. If this is
+ * not acceptable build your own datagrams and use the functions from nicdrv.c.
  */
 
 #include <stdio.h>
@@ -14,594 +21,617 @@
 #include "ethercattype.h"
 #include "ethercatbase.h"
 
-/** 将数据写进数据报
+/** Write data to EtherCAT datagram.
  *
- * @param[out] datagramdata   数据部分
- * @param[in]  com            命令
- * @param[in]  length         写入的数据长度
- * @param[in]  data           要写到数据报中的数据
+ * @param[out] datagramdata   = data part of datagram
+ * @param[in]  com            = command
+ * @param[in]  length         = length of databuffer
+ * @param[in]  data           = databuffer to be copied into datagram
  */
-static void Nexx__writedatagramdata(void *datagramdata,uint16 length, const void * data)
+static void nexx_writedatagramdata(void *datagramdata, nex_cmdtype com, uint16 length, const void * data)
 {
    if (length > 0)
    {
-	   //数据拷贝
-	  memcpy(datagramdata, data, length);
+      switch (com)
+      {
+         case NEX_CMD_NOP:
+            /* Fall-through */
+         case NEX_CMD_APRD:
+            /* Fall-through */
+         case NEX_CMD_FPRD:
+            /* Fall-through */
+         case NEX_CMD_BRD:
+            /* Fall-through */
+         case NEX_CMD_LRD:
+            /* no data to write. initialise data so frame is in a known state */
+            memset(datagramdata, 0, length);
+            break;
+         default:
+            memcpy(datagramdata, data, length);
+            break;
+      }
    }
 }
 
-/** 创建一个标准的EtherCAT数据报文
+/** Generate and set EtherCAT datagram in a standard ethernet frame.
  *
- * @param[in] port         port结构体
- * @param[out] frame       数据帧
- * @param[in]  com         命令
- * @param[in]  idx         数据发送与接收的索引，避免丢数据
- * @param[in]  ADP         设备地址
- * @param[in]  ADO         地址偏移
- * @param[in]  length      除去EtherCAT报头外的数据长度
- * @param[in]  data        准备写到报文中数据
- * @return  0
+ * @param[in] port        = port context struct
+ * @param[out] frame       = framebuffer
+ * @param[in]  com         = command
+ * @param[in]  idx         = index used for TX and RX buffers
+ * @param[in]  ADP         = Address Position
+ * @param[in]  ADO         = Address Offset
+ * @param[in]  length      = length of datagram excluding EtherCAT header
+ * @param[in]  data        = databuffer to be copied in datagram
+ * @return always 0
  */
-int Nexx__setupdatagram(Nexx__portt *port, void *frame, uint8 com, uint8 idx, uint16 ADP, uint16 ADO, uint16 length, void *data)
+int nexx_setupdatagram(nexx_portt *port, void *frame, uint8 com, uint8 idx, uint16 ADP, uint16 ADO, uint16 length, void *data)
 {
-   Nex_comt *datagramP;
+   nex_comt *datagramP;
    uint8 *frameP;
 
    frameP = frame;
-   datagramP = (Nex_comt*)&frameP[ETH_HEADERSIZE];//ECT Header接在Ethernet Header之后
-   datagramP->elength = htoes(Nex_ECATTYPE + Nex_HEADERSIZE + length);//把Length res Type当做两个字节处理
+   /* Ethernet header is preset and fixed in frame buffers
+      EtherCAT header needs to be added after that */
+   datagramP = (nex_comt*)&frameP[ETH_HEADERSIZE];
+   datagramP->elength = htoes(NEX_ECATTYPE + NEX_HEADERSIZE + length);
    datagramP->command = com;
    datagramP->index = idx;
-   datagramP->ADP = htoes(ADP);//设备地址
-   datagramP->ADO = htoes(ADO);//偏移地址
-   datagramP->dlength = htoes(length);//数据长度
-   Nexx__writedatagramdata(&frameP[ETH_HEADERSIZE + Nex_HEADERSIZE],length, data);
-   /* 将工作计数器置零 */
-   frameP[ETH_HEADERSIZE + Nex_HEADERSIZE + length] = 0x00;
-   frameP[ETH_HEADERSIZE + Nex_HEADERSIZE + length + 1] = 0x00;
-   /* 设置发送数据的长度 */
-   port->txbuflength[idx] = ETH_HEADERSIZE + Nex_HEADERSIZE + Nex_WKCSIZE + length;
+   datagramP->ADP = htoes(ADP);
+   datagramP->ADO = htoes(ADO);
+   datagramP->dlength = htoes(length);
+   nexx_writedatagramdata(&frameP[ETH_HEADERSIZE + NEX_HEADERSIZE], com, length, data);
+   /* set WKC to zero */
+   frameP[ETH_HEADERSIZE + NEX_HEADERSIZE + length] = 0x00;
+   frameP[ETH_HEADERSIZE + NEX_HEADERSIZE + length + 1] = 0x00;
+   /* set size of frame in buffer array */
+   port->txbuflength[idx] = ETH_HEADERSIZE + NEX_HEADERSIZE + NEX_WKCSIZE + length;
 
    return 0;
 }
 
-/** 在现有的数据报文的基础上再添加一个数据报文放在数据帧里面
+/** Add EtherCAT datagram to a standard ethernet frame with existing datagram(s).
  *
- * @param[in] port        port结构体
- * @param[out] frame      数据帧
- * @param[in]  com        命令
- * @param[in]  idx        数据发送与接收的索引，避免丢数据
- * @param[in]  more       是否有后接数据报 TRUE表示有
- * @param[in]  ADP        设备地址
- * @param[in]  ADO        地址偏移量
- * @param[in]  length     写入的数据长度
- * @param[in]  data       写入的数据
+ * @param[in] port        = port context struct
+ * @param[out] frame      = framebuffer
+ * @param[in]  com        = command
+ * @param[in]  idx        = index used for TX and RX buffers
+ * @param[in]  more       = TRUE if still more datagrams to follow
+ * @param[in]  ADP        = Address Position
+ * @param[in]  ADO        = Address Offset
+ * @param[in]  length     = length of datagram excluding EtherCAT header
+ * @param[in]  data       = databuffer to be copied in datagram
  * @return Offset to data in rx frame, usefull to retrieve data after RX.
  */
-int Nexx__adddatagram(Nexx__portt *port, void *frame, uint8 com, uint8 idx, boolean more, uint16 ADP, uint16 ADO, uint16 length, void *data)
+int nexx_adddatagram(nexx_portt *port, void *frame, uint8 com, uint8 idx, boolean more, uint16 ADP, uint16 ADO, uint16 length, void *data)
 {
-   Nex_comt *datagramP;
+   nex_comt *datagramP;
    uint8 *frameP;
    uint16 prevlength;
 
    frameP = frame;
-   /* 得到上次发送的数据大小 */
+   /* copy previous frame size */
    prevlength = port->txbuflength[idx];
-   datagramP = (Nex_comt*)&frameP[ETH_HEADERSIZE];//定位到ECT Header
-   //修改EtherCAT Datagrams 数据总长度
-   datagramP->elength = htoes( etohs(datagramP->elength) + Nex_HEADERSIZE + length );
-   //修改第一个报文的 datagramfllows位
-   datagramP->dlength = htoes( etohs(datagramP->dlength) | Nex_DATAGRAMFOLLOWS );
-   //确定第二个报文的开始位置 在结构体中包括了elength 所以第二次要减去
-   datagramP = (Nex_comt*)&frameP[prevlength - Nex_ELENGTHSIZE];
+   datagramP = (nex_comt*)&frameP[ETH_HEADERSIZE];
+   /* add new datagram to ethernet frame size */
+   datagramP->elength = htoes( etohs(datagramP->elength) + NEX_HEADERSIZE + length );
+   /* add "datagram follows" flag to previous subframe dlength */
+   datagramP->dlength = htoes( etohs(datagramP->dlength) | NEX_DATAGRAMFOLLOWS );
+   /* set new EtherCAT header position */
+   datagramP = (nex_comt*)&frameP[prevlength - NEX_ELENGTHSIZE];
    datagramP->command = com;
    datagramP->index = idx;
    datagramP->ADP = htoes(ADP);
    datagramP->ADO = htoes(ADO);
    if (more)
    {
-      /* 还有后接数据报文 */
-      datagramP->dlength = htoes(length | Nex_DATAGRAMFOLLOWS);
+      /* this is not the last datagram to add */
+      datagramP->dlength = htoes(length | NEX_DATAGRAMFOLLOWS);
    }
    else
    {
-      /* 这是最后一个数据报 */
+      /* this is the last datagram in the frame */
       datagramP->dlength = htoes(length);
    }
-   Nexx__writedatagramdata(&frameP[prevlength + Nex_HEADERSIZE - Nex_ELENGTHSIZE],length, data);//仅仅做数据拷贝
-   /* 将WKC置零 */
-   frameP[prevlength + Nex_HEADERSIZE - Nex_ELENGTHSIZE + length] = 0x00;
-   frameP[prevlength + Nex_HEADERSIZE - Nex_ELENGTHSIZE + length + 1] = 0x00;
-   /* 设置发送缓冲区的大小 */
-   port->txbuflength[idx] = prevlength + Nex_HEADERSIZE - Nex_ELENGTHSIZE + Nex_WKCSIZE + length;
-   //返回数据报总长度 Nex_ELENGTHSIZE与Nex_ELENGTHSIZE只进行一次计算
-   return prevlength + Nex_HEADERSIZE - Nex_ELENGTHSIZE - Nex_ELENGTHSIZE;
+   nexx_writedatagramdata(&frameP[prevlength + NEX_HEADERSIZE - NEX_ELENGTHSIZE], com, length, data);
+   /* set WKC to zero */
+   frameP[prevlength + NEX_HEADERSIZE - NEX_ELENGTHSIZE + length] = 0x00;
+   frameP[prevlength + NEX_HEADERSIZE - NEX_ELENGTHSIZE + length + 1] = 0x00;
+   /* set size of frame in buffer array */
+   port->txbuflength[idx] = prevlength + NEX_HEADERSIZE - NEX_ELENGTHSIZE + NEX_WKCSIZE + length;
+
+   /* return offset to data in rx frame
+      14 bytes smaller than tx frame due to stripping of ethernet header */
+   return prevlength + NEX_HEADERSIZE - NEX_ELENGTHSIZE - ETH_HEADERSIZE;
 }
 
-/** BWR.指令写
+/** BRW "broadcast write" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in] ADP         设备地址 用该指令时一般为0
- * @param[in] ADO         偏移地址 从站内存地址
- * @param[in] length      数据长度
- * @param[in] data        写入从站的数据
- * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in] ADP         = Address Position, normally 0
+ * @param[in] ADO         = Address Offset, slave memory address
+ * @param[in] length      = length of databuffer
+ * @param[in] data        = databuffer to be written to slaves
+ * @param[in] timeout     = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__BWR (Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nexx_BWR (nexx_portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
    uint8 idx;
    int wkc;
 
-   /*获得没有利用到的索引号*/
-   idx = Nexx__getindex (port);
-   /* 创建数据报文 */
-   Nexx__setupdatagram (port, &(port->txbuf[idx]), Nex_CMD_BWR, idx, ADP, ADO, length, data);
-   /* 发送数据等待应答 */
-   wkc = Nexx__srconfirm (port, idx, timeout);
-   /* 清楚buffer状态 */
-   Nexx__setbufstat (port, idx, Nex_BUF_EMPTY);
+   /* get fresh index */
+   idx = nexx_getindex (port);
+   /* setup datagram */
+   nexx_setupdatagram (port, &(port->txbuf[idx]), NEX_CMD_BWR, idx, ADP, ADO, length, data);
+   /* send data and wait for answer */
+   wkc = nexx_srconfirm (port, idx, timeout);
+   /* clear buffer status */
+   nexx_setbufstat (port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** BRD 指令写.
+/** BRD "broadcast read" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in]  ADP        设备地址 用该指令时一般为0
- * @param[in]  ADO        偏移地址 从站内存地址
- * @param[in]  length     数据长度
- * @param[out] data       从从站读取的数据
- * @param[in]  timeout    溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in]  ADP        = Address Position, normally 0
+ * @param[in]  ADO        = Address Offset, slave memory address
+ * @param[in]  length     = length of databuffer
+ * @param[out] data       = databuffer to put slave data in
+ * @param[in]  timeout    = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__BRD(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nexx_BRD(nexx_portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
    uint8 idx;
    int wkc;
 
-   /* 得到未利用到的索引号 */
-   idx = Nexx__getindex(port);
-   /* 创建数据报 */
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_BRD, idx, ADP, ADO, length, data);
-   /* 发送数据等待应答 */
-   wkc = Nexx__srconfirm (port, idx, timeout);
+   /* get fresh index */
+   idx = nexx_getindex(port);
+   /* setup datagram */
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_BRD, idx, ADP, ADO, length, data);
+   /* send data and wait for answer */
+   wkc = nexx_srconfirm (port, idx, timeout);
    if (wkc > 0)
    {
-      /* 从接受缓冲区copy数据 */
-      memcpy(data, &(port->rxbuf[idx][Nex_HEADERSIZE]), length);
+      /* copy datagram to data buffer */
+      memcpy(data, &(port->rxbuf[idx][NEX_HEADERSIZE]), length);
    }
-   /*清理 buffer 状态 */
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   /* clear buffer status */
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** APRD 自增地址读. Blocking.
+/** APRD "auto increment address read" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in]  ADP        设备地址, 从0开始++
- * @param[in]  ADO        偏移地址，从站内存地址
- * @param[in]  length     数据长度
- * @param[out] data       从从站读取到的数据
- * @param[in]  timeout    溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in]  ADP        = Address Position, each slave ++, slave that has 0 excecutes
+ * @param[in]  ADO        = Address Offset, slave memory address
+ * @param[in]  length     = length of databuffer
+ * @param[out] data       = databuffer to put slave data in
+ * @param[in]  timeout    = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__APRD(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nexx_APRD(nexx_portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
    int wkc;
    uint8 idx;
 
-   idx = Nexx__getindex(port);
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_APRD, idx, ADP, ADO, length, data);
-   wkc = Nexx__srconfirm(port, idx, timeout);
+   idx = nexx_getindex(port);
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_APRD, idx, ADP, ADO, length, data);
+   wkc = nexx_srconfirm(port, idx, timeout);
    if (wkc > 0)
    {
-      memcpy(data, &(port->rxbuf[idx][Nex_HEADERSIZE]), length);
+      memcpy(data, &(port->rxbuf[idx][NEX_HEADERSIZE]), length);
    }
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** APRMW “自动递增地址读取，多次写入”. Blocking.
+/** APRMW "auto increment address read, multiple write" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in]  ADP        设备地址
- * @param[in]  ADO        偏移地址
- * @param[in]  length     数据长度
- * @param[out] data       从从站中获取的数据
- * @param[in]  timeout    溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in]  ADP        = Address Position, each slave ++, slave that has 0 reads,
+ *                          following slaves write.
+ * @param[in]  ADO        = Address Offset, slave memory address
+ * @param[in]  length     = length of databuffer
+ * @param[out] data       = databuffer to put slave data in
+ * @param[in]  timeout    = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__ARMW(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nexx_ARMW(nexx_portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
    int wkc;
    uint8 idx;
 
-   idx = Nexx__getindex(port);
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_ARMW, idx, ADP, ADO, length, data);
-   wkc = Nexx__srconfirm(port, idx, timeout);
+   idx = nexx_getindex(port);
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_ARMW, idx, ADP, ADO, length, data);
+   wkc = nexx_srconfirm(port, idx, timeout);
    if (wkc > 0)
    {
-      memcpy(data, &(port->rxbuf[idx][Nex_HEADERSIZE]), length);
+      memcpy(data, &(port->rxbuf[idx][NEX_HEADERSIZE]), length);
    }
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** FPRMW 设置地址读 多重写 . Blocking.
+/** FPRMW "configured address read, multiple write" primitive. Blocking.
  *
- * @param[in] port        Port 结构体
- * @param[in]  ADP        设备地址 设定的从站地址
- * @param[in]  ADO        偏移地址 从站内存地址
- * @param[in]  length     数据长度
- * @param[out] data       从从站得到的数据
- * @param[in]  timeout    溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in]  ADP        = Address Position, slave that has address reads,
+ *                          following slaves write.
+ * @param[in]  ADO        = Address Offset, slave memory address
+ * @param[in]  length     = length of databuffer
+ * @param[out] data       = databuffer to put slave data in
+ * @param[in]  timeout    = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__FRMW(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nexx_FRMW(nexx_portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
    int wkc;
    uint8 idx;
 
-   idx = Nexx__getindex(port);
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_FRMW, idx, ADP, ADO, length, data);
-   wkc = Nexx__srconfirm(port, idx, timeout);
+   idx = nexx_getindex(port);
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_FRMW, idx, ADP, ADO, length, data);
+   wkc = nexx_srconfirm(port, idx, timeout);
    if (wkc > 0)
    {
-      memcpy(data, &(port->rxbuf[idx][Nex_HEADERSIZE]), length);
+      memcpy(data, &(port->rxbuf[idx][NEX_HEADERSIZE]), length);
    }
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** APRDw 自增地址读 WORD类型返回. Blocking.
+/** APRDw "auto increment address read" word return primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in] ADP         设备地址
- * @param[in] ADO         偏移地址
- * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
- * @return 从从站得到的WORD类型数据
+ * @param[in] port        = port context struct
+ * @param[in] ADP         = Address Position, each slave ++, slave that has 0 reads.
+ * @param[in] ADO         = Address Offset, slave memory address
+ * @param[in] timeout     = timeout in us, standard is NEX_TIMEOUTRET
+ * @return word data from slave
  */
-uint16 Nexx__APRDw(Nexx__portt *port, uint16 ADP, uint16 ADO, int timeout)
+uint16 nexx_APRDw(nexx_portt *port, uint16 ADP, uint16 ADO, int timeout)
 {
    uint16 w;
 
    w = 0;
-   Nexx__APRD(port, ADP, ADO, sizeof(w), &w, timeout);
+   nexx_APRD(port, ADP, ADO, sizeof(w), &w, timeout);
 
    return w;
 }
 
-/** FPRD 设置地址读. Blocking.
+/** FPRD "configured address read" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in]  ADP        设备地址
- * @param[in]  ADO        偏移地址
- * @param[in]  length     数据长度
- * @param[out] data       从从站得到的数据
- * @param[in]  timeout    溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in]  ADP        = Address Position, slave that has address reads.
+ * @param[in]  ADO        = Address Offset, slave memory address
+ * @param[in]  length     = length of databuffer
+ * @param[out] data       = databuffer to put slave data in
+ * @param[in]  timeout    = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__FPRD(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nexx_FPRD(nexx_portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
    int wkc;
    uint8 idx;
 
-   idx = Nexx__getindex(port);
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_FPRD, idx, ADP, ADO, length, data);
-   wkc = Nexx__srconfirm(port, idx, timeout);
+   idx = nexx_getindex(port);
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_FPRD, idx, ADP, ADO, length, data);
+   wkc = nexx_srconfirm(port, idx, timeout);
    if (wkc > 0)
    {
-      memcpy(data, &(port->rxbuf[idx][Nex_HEADERSIZE]), length);
+      memcpy(data, &(port->rxbuf[idx][NEX_HEADERSIZE]), length);
    }
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** FPRDw 设置地址读 WORD类型返回. Blocking.
+/** FPRDw "configured address read" word return primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in] ADP         设备地址
- * @param[in] ADO         偏移地址 从站内存地址
- * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
- * @return 从从站得到的WOED类型数据
+ * @param[in] port        = port context struct
+ * @param[in] ADP         = Address Position, slave that has address reads.
+ * @param[in] ADO         = Address Offset, slave memory address
+ * @param[in] timeout     = timeout in us, standard is NEX_TIMEOUTRET
+ * @return word data from slave
  */
-uint16 Nexx__FPRDw(Nexx__portt *port, uint16 ADP, uint16 ADO, int timeout)
+uint16 nexx_FPRDw(nexx_portt *port, uint16 ADP, uint16 ADO, int timeout)
 {
    uint16 w;
 
    w = 0;
-   Nexx__FPRD(port, ADP, ADO, sizeof(w), &w, timeout);
+   nexx_FPRD(port, ADP, ADO, sizeof(w), &w, timeout);
    return w;
 }
 
-/** APWR 自增地址写. Blocking.
+/** APWR "auto increment address write" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in] ADP         设备地址
- * @param[in] ADO         偏移地址
- * @param[in] length      数据长度
- * @param[in] data        写入从站的数据
- * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in] ADP         = Address Position, each slave ++, slave that has 0 writes.
+ * @param[in] ADO         = Address Offset, slave memory address
+ * @param[in] length      = length of databuffer
+ * @param[in] data        = databuffer to write to slave.
+ * @param[in] timeout     = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__APWR(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nexx_APWR(nexx_portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
    uint8 idx;
    int wkc;
 
-   idx = Nexx__getindex(port);
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_APWR, idx, ADP, ADO, length, data);
-   wkc = Nexx__srconfirm(port, idx, timeout);
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   idx = nexx_getindex(port);
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_APWR, idx, ADP, ADO, length, data);
+   wkc = nexx_srconfirm(port, idx, timeout);
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** APWRw 自增地址写. Blocking.
+/** APWRw "auto increment address write" word primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in] ADP         设备地址
- * @param[in] ADO         偏移地址 从在内存地址
- * @param[in] data        写入从站的WORD字节数据
- * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in] ADP         = Address Position, each slave ++, slave that has 0 writes.
+ * @param[in] ADO         = Address Offset, slave memory address
+ * @param[in] data        = word data to write to slave.
+ * @param[in] timeout     = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__APWRw(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 data, int timeout)
+int nexx_APWRw(nexx_portt *port, uint16 ADP, uint16 ADO, uint16 data, int timeout)
 {
-   return Nexx__APWR(port, ADP, ADO, sizeof(data), &data, timeout);
+   return nexx_APWR(port, ADP, ADO, sizeof(data), &data, timeout);
 }
 
-/** FPWR 设置地址写. Blocking.
+/** FPWR "configured address write" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in] ADP         设备地址
- * @param[in] ADO         偏移地址
- * @param[in] length      数据长度
- * @param[in] data        要写到从站的数据
- * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in] ADP         = Address Position, slave that has address writes.
+ * @param[in] ADO         = Address Offset, slave memory address
+ * @param[in] length      = length of databuffer
+ * @param[in] data        = databuffer to write to slave.
+ * @param[in] timeout     = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__FPWR(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nexx_FPWR(nexx_portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
    int wkc;
    uint8 idx;
 
-   idx = Nexx__getindex(port);
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_FPWR, idx, ADP, ADO, length, data);
-   wkc = Nexx__srconfirm(port, idx, timeout);
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   idx = nexx_getindex(port);
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_FPWR, idx, ADP, ADO, length, data);
+   wkc = nexx_srconfirm(port, idx, timeout);
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** FPWR 设置地址写. Blocking.
+/** FPWR "configured address write" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in] ADP         设备地址
- * @param[in] ADO         偏移地址
- * @param[in] data        写入从站的WORD数据
- * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in] ADP         = Address Position, slave that has address writes.
+ * @param[in] ADO         = Address Offset, slave memory address
+ * @param[in] data        = word to write to slave.
+ * @param[in] timeout     = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__FPWRw(Nexx__portt *port, uint16 ADP, uint16 ADO, uint16 data, int timeout)
+int nexx_FPWRw(nexx_portt *port, uint16 ADP, uint16 ADO, uint16 data, int timeout)
 {
-   return Nexx__FPWR(port, ADP, ADO, sizeof(data), &data, timeout);
+   return nexx_FPWR(port, ADP, ADO, sizeof(data), &data, timeout);
 }
 
-/** LRW 逻辑地址读/写. Blocking.
+/** LRW "logical memory read / write" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in]     LogAdr  逻辑内存地址
- * @param[in]     length  数据长度
- * @param[in,out] data    要写入或读取的从站数据
- * @param[in]     timeout 溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in]     LogAdr  = Logical memory address
+ * @param[in]     length  = length of databuffer
+ * @param[in,out] data    = databuffer to write to and read from slave.
+ * @param[in]     timeout = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__LRW(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, int timeout)
+int nexx_LRW(nexx_portt *port, uint32 LogAdr, uint16 length, void *data, int timeout)
 {
    uint8 idx;
    int wkc;
 
-   idx = Nexx__getindex(port);
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_LRW, idx, LO_WORD(LogAdr), HI_WORD(LogAdr), length, data);
-   wkc = Nexx__srconfirm(port, idx, timeout);
-   if ((wkc > 0) && (port->rxbuf[idx][Nex_CMDOFFSET] == Nex_CMD_LRW))
+   idx = nexx_getindex(port);
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_LRW, idx, LO_WORD(LogAdr), HI_WORD(LogAdr), length, data);
+   wkc = nexx_srconfirm(port, idx, timeout);
+   if ((wkc > 0) && (port->rxbuf[idx][NEX_CMDOFFSET] == NEX_CMD_LRW))
    {
-      memcpy(data, &(port->rxbuf[idx][Nex_HEADERSIZE]), length);
+      memcpy(data, &(port->rxbuf[idx][NEX_HEADERSIZE]), length);
    }
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** LRD 逻辑地址读. Blocking.
+/** LRD "logical memory read" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in]  LogAdr     逻辑地址
- * @param[in]  length     从从站读取到的字节长度
- * @param[out] data       从从站读取到的数据
- * @param[in]  timeout    溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in]  LogAdr     = Logical memory address
+ * @param[in]  length     = length of bytes to read from slave.
+ * @param[out] data       = databuffer to read from slave.
+ * @param[in]  timeout    = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__LRD(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, int timeout)
+int nexx_LRD(nexx_portt *port, uint32 LogAdr, uint16 length, void *data, int timeout)
 {
    uint8 idx;
    int wkc;
 
-   idx = Nexx__getindex(port);
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_LRD, idx, LO_WORD(LogAdr), HI_WORD(LogAdr), length, data);
-   wkc = Nexx__srconfirm(port, idx, timeout);
-   if ((wkc > 0) && (port->rxbuf[idx][Nex_CMDOFFSET]==Nex_CMD_LRD))
+   idx = nexx_getindex(port);
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_LRD, idx, LO_WORD(LogAdr), HI_WORD(LogAdr), length, data);
+   wkc = nexx_srconfirm(port, idx, timeout);
+   if ((wkc > 0) && (port->rxbuf[idx][NEX_CMDOFFSET]==NEX_CMD_LRD))
    {
-      memcpy(data, &(port->rxbuf[idx][Nex_HEADERSIZE]), length);
+      memcpy(data, &(port->rxbuf[idx][NEX_HEADERSIZE]), length);
    }
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** LWR 逻辑地址写. Blocking.
+/** LWR "logical memory write" primitive. Blocking.
  *
- * @param[in] port        Port结构体
- * @param[in] LogAdr      逻辑地址
- * @param[in] length      数据长度
- * @param[in] data        要写入的数据
- * @param[in] timeout     溢出时间 标准是 Nex_TIMEOUTRET us
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in] LogAdr      = Logical memory address
+ * @param[in] length      = length of databuffer
+ * @param[in] data        = databuffer to write to slave.
+ * @param[in] timeout     = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__LWR(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, int timeout)
+int nexx_LWR(nexx_portt *port, uint32 LogAdr, uint16 length, void *data, int timeout)
 {
    uint8 idx;
    int wkc;
 
-   idx = Nexx__getindex(port);
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_LWR, idx, LO_WORD(LogAdr), HI_WORD(LogAdr), length, data);
-   wkc = Nexx__srconfirm(port, idx, timeout);
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   idx = nexx_getindex(port);
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_LWR, idx, LO_WORD(LogAdr), HI_WORD(LogAdr), length, data);
+   wkc = nexx_srconfirm(port, idx, timeout);
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-/** LRW 逻辑地址读/写再加上分布时钟. Blocking.
- * 数据帧包括两个数据报, 一个 LRW 一个 FPRMW.
+/** LRW "logical memory read / write" primitive plus Clock Distribution. Blocking.
+ * Frame consists of two datagrams, one LRW and one FPRMW.
  *
- * @param[in] port        Port结构体
- * @param[in]     LogAdr  逻辑内存地址
- * @param[in]     length  数据长度
- * @param[in,out] data    从站读取或者写入的数据
- * @param[in]     DCrs    从站的分布时钟地址
- * @param[out]    DCtime  从从站读取到的DC时间
- * @param[in]     timeout Distributed Clock reference slave address.
- * @return WKC or Nex_NOFRAME
+ * @param[in] port        = port context struct
+ * @param[in]     LogAdr  = Logical memory address
+ * @param[in]     length  = length of databuffer
+ * @param[in,out] data    = databuffer to write to and read from slave.
+ * @param[in]     DCrs    = Distributed Clock reference slave address.
+ * @param[out]    DCtime  = DC time read from reference slave.
+ * @param[in]     timeout = timeout in us, standard is NEX_TIMEOUTRET
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__LRWDC(Nexx__portt *port, uint32 LogAdr, uint16 length, void *data, uint16 DCrs, int64 *DCtime, int timeout)
+int nexx_LRWDC(nexx_portt *port, uint32 LogAdr, uint16 length, void *data, uint16 DCrs, int64 *DCtime, int timeout)
 {
    uint16 DCtO;
    uint8 idx;
    int wkc;
    uint64 DCtE;
 
-   idx = Nexx__getindex(port);
-   /* LRW报文 */
-   Nexx__setupdatagram(port, &(port->txbuf[idx]), Nex_CMD_LRW, idx, LO_WORD(LogAdr), HI_WORD(LogAdr), length, data);
-   /* FPRMW 报文 */
+   idx = nexx_getindex(port);
+   /* LRW in first datagram */
+   nexx_setupdatagram(port, &(port->txbuf[idx]), NEX_CMD_LRW, idx, LO_WORD(LogAdr), HI_WORD(LogAdr), length, data);
+   /* FPRMW in second datagram */
    DCtE = htoell(*DCtime);
-   DCtO = Nexx__adddatagram(port, &(port->txbuf[idx]), Nex_CMD_FRMW, idx, FALSE, DCrs, ECT_REG_DCSYSTIME, sizeof(DCtime), &DCtE);
-   wkc = Nexx__srconfirm(port, idx, timeout);
-   if ((wkc > 0) && (port->rxbuf[idx][Nex_CMDOFFSET] == Nex_CMD_LRW))
+   DCtO = nexx_adddatagram(port, &(port->txbuf[idx]), NEX_CMD_FRMW, idx, FALSE, DCrs, ECT_REG_DCSYSTIME, sizeof(DCtime), &DCtE);
+   wkc = nexx_srconfirm(port, idx, timeout);
+   if ((wkc > 0) && (port->rxbuf[idx][NEX_CMDOFFSET] == NEX_CMD_LRW))
    {
-      memcpy(data, &(port->rxbuf[idx][Nex_HEADERSIZE]), length);
-      memcpy(&wkc, &(port->rxbuf[idx][Nex_HEADERSIZE + length]), Nex_WKCSIZE);
+      memcpy(data, &(port->rxbuf[idx][NEX_HEADERSIZE]), length);
+      memcpy(&wkc, &(port->rxbuf[idx][NEX_HEADERSIZE + length]), NEX_WKCSIZE);
       memcpy(&DCtE, &(port->rxbuf[idx][DCtO]), sizeof(*DCtime));
       *DCtime = etohll(DCtE);
    }
-   Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+   nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
 
    return wkc;
 }
 
-
-int Nex_setupdatagram(void *frame, uint8 com, uint8 idx, uint16 ADP, uint16 ADO, uint16 length, void *data)
+#ifdef NEX_VER1
+int nex_setupdatagram(void *frame, uint8 com, uint8 idx, uint16 ADP, uint16 ADO, uint16 length, void *data)
 {
-   return Nexx__setupdatagram (&Nexx__port, frame, com, idx, ADP, ADO, length, data);
+   return nexx_setupdatagram (&nexx_port, frame, com, idx, ADP, ADO, length, data);
 }
 
-int Nex_adddatagram (void *frame, uint8 com, uint8 idx, boolean more, uint16 ADP, uint16 ADO, uint16 length, void *data)
+int nex_adddatagram (void *frame, uint8 com, uint8 idx, boolean more, uint16 ADP, uint16 ADO, uint16 length, void *data)
 {
-   return Nexx__adddatagram (&Nexx__port, frame, com, idx, more, ADP, ADO, length, data);
+   return nexx_adddatagram (&nexx_port, frame, com, idx, more, ADP, ADO, length, data);
 }
 
-int Nex_BWR(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nex_BWR(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
-   return Nexx__BWR (&Nexx__port, ADP, ADO, length, data, timeout);
+   return nexx_BWR (&nexx_port, ADP, ADO, length, data, timeout);
 }
 
-int Nex_BRD(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nex_BRD(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
-   return Nexx__BRD(&Nexx__port, ADP, ADO, length, data, timeout);
+   return nexx_BRD(&nexx_port, ADP, ADO, length, data, timeout);
 }
 
-int Nex_APRD(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nex_APRD(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
-   return Nexx__APRD(&Nexx__port, ADP, ADO, length, data, timeout);
+   return nexx_APRD(&nexx_port, ADP, ADO, length, data, timeout);
 }
 
-int Nex_ARMW(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nex_ARMW(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
-   return Nexx__ARMW(&Nexx__port, ADP, ADO, length, data, timeout);
+   return nexx_ARMW(&nexx_port, ADP, ADO, length, data, timeout);
 }
 
-int Nex_FRMW(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nex_FRMW(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
-   return Nexx__FRMW(&Nexx__port, ADP, ADO, length, data, timeout);
+   return nexx_FRMW(&nexx_port, ADP, ADO, length, data, timeout);
 }
 
-uint16 Nex_APRDw(uint16 ADP, uint16 ADO, int timeout)
-{
-   uint16 w;
-
-   w = 0;
-   Nex_APRD(ADP, ADO, sizeof(w), &w, timeout);
-
-   return w;
-}
-
-int Nex_FPRD(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
-{
-   return Nexx__FPRD(&Nexx__port, ADP, ADO, length, data, timeout);
-}
-
-uint16 Nex_FPRDw(uint16 ADP, uint16 ADO, int timeout)
+uint16 nex_APRDw(uint16 ADP, uint16 ADO, int timeout)
 {
    uint16 w;
 
    w = 0;
-   Nex_FPRD(ADP, ADO, sizeof(w), &w, timeout);
+   nex_APRD(ADP, ADO, sizeof(w), &w, timeout);
+
    return w;
 }
 
-int Nex_APWR(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nex_FPRD(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
-   return Nexx__APWR(&Nexx__port, ADP, ADO, length, data, timeout);
+   return nexx_FPRD(&nexx_port, ADP, ADO, length, data, timeout);
 }
 
-int Nex_APWRw(uint16 ADP, uint16 ADO, uint16 data, int timeout)
+uint16 nex_FPRDw(uint16 ADP, uint16 ADO, int timeout)
 {
-   return Nex_APWR(ADP, ADO, sizeof(data), &data, timeout);
+   uint16 w;
+
+   w = 0;
+   nex_FPRD(ADP, ADO, sizeof(w), &w, timeout);
+   return w;
 }
 
-int Nex_FPWR(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
+int nex_APWR(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
-   return Nexx__FPWR(&Nexx__port, ADP, ADO, length, data, timeout);
+   return nexx_APWR(&nexx_port, ADP, ADO, length, data, timeout);
 }
 
-int Nex_FPWRw(uint16 ADP, uint16 ADO, uint16 data, int timeout)
+int nex_APWRw(uint16 ADP, uint16 ADO, uint16 data, int timeout)
 {
-   return Nex_FPWR(ADP, ADO, sizeof(data), &data, timeout);
+   return nex_APWR(ADP, ADO, sizeof(data), &data, timeout);
 }
 
-int Nex_LRW(uint32 LogAdr, uint16 length, void *data, int timeout)
+int nex_FPWR(uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
 {
-   return Nexx__LRW(&Nexx__port, LogAdr, length, data, timeout);
+   return nexx_FPWR(&nexx_port, ADP, ADO, length, data, timeout);
 }
 
-int Nex_LRD(uint32 LogAdr, uint16 length, void *data, int timeout)
+int nex_FPWRw(uint16 ADP, uint16 ADO, uint16 data, int timeout)
 {
-   return Nexx__LRD(&Nexx__port, LogAdr, length, data, timeout);
+   return nex_FPWR(ADP, ADO, sizeof(data), &data, timeout);
 }
 
-int Nex_LWR(uint32 LogAdr, uint16 length, void *data, int timeout)
+int nex_LRW(uint32 LogAdr, uint16 length, void *data, int timeout)
 {
-   return Nexx__LWR(&Nexx__port, LogAdr, length, data, timeout);
+   return nexx_LRW(&nexx_port, LogAdr, length, data, timeout);
 }
 
-int Nex_LRWDC(uint32 LogAdr, uint16 length, void *data, uint16 DCrs, int64 *DCtime, int timeout)
+int nex_LRD(uint32 LogAdr, uint16 length, void *data, int timeout)
 {
-   return Nexx__LRWDC(&Nexx__port, LogAdr, length, data, DCrs, DCtime, timeout);
+   return nexx_LRD(&nexx_port, LogAdr, length, data, timeout);
 }
+
+int nex_LWR(uint32 LogAdr, uint16 length, void *data, int timeout)
+{
+   return nexx_LWR(&nexx_port, LogAdr, length, data, timeout);
+}
+
+int nex_LRWDC(uint32 LogAdr, uint16 length, void *data, uint16 DCrs, int64 *DCtime, int timeout)
+{
+   return nexx_LRWDC(&nexx_port, LogAdr, length, data, DCrs, DCtime, timeout);
+}
+#endif

@@ -72,12 +72,12 @@ const uint16 secMAC[3] = { 0x0404, 0x0404, 0x0404 };
 
 static char errbuf[PCAP_ERRBUF_SIZE];
 
-static void Nexx__clear_rxbufstat(int *rxbufstat)
+static void nexx_clear_rxbufstat(int *rxbufstat)
 {
    int i;
-   for(i = 0; i < Nex_MAXBUF; i++)
+   for(i = 0; i < NEX_MAXBUF; i++)
    {
-      rxbufstat[i] = Nex_BUF_EMPTY;
+      rxbufstat[i] = NEX_BUF_EMPTY;
    }
 }
 
@@ -87,7 +87,7 @@ static void Nexx__clear_rxbufstat(int *rxbufstat)
  * @param[in] secondary      = if >0 then use secondary stack instead of primary
  * @return >0 if succeeded
  */
-int Nexx__setupnic(Nexx__portt *port, const char *ifname, int secondary)
+int nexx_setupnic(nexx_portt *port, const char *ifname, int secondary)
 {
    int i, rval;
    pcap_t **psock;
@@ -109,7 +109,7 @@ int Nexx__setupnic(Nexx__portt *port, const char *ifname, int secondary)
          port->redport->stack.rxbuf       = &(port->redport->rxbuf);
          port->redport->stack.rxbufstat   = &(port->redport->rxbufstat);
          port->redport->stack.rxsa        = &(port->redport->rxsa);
-         Nexx__clear_rxbufstat(&(port->redport->rxbufstat[0]));
+         nexx_clear_rxbufstat(&(port->redport->rxbufstat[0]));
       }
       else
       {
@@ -132,7 +132,7 @@ int Nexx__setupnic(Nexx__portt *port, const char *ifname, int secondary)
       port->stack.rxbuf       = &(port->rxbuf);
       port->stack.rxbufstat   = &(port->rxbufstat);
       port->stack.rxsa        = &(port->rxsa);
-      Nexx__clear_rxbufstat(&(port->rxbufstat[0]));
+      nexx_clear_rxbufstat(&(port->rxbufstat[0]));
       psock = &(port->sockhandle);
    }
    /* we use pcap socket to send RAW packets in windows user mode*/
@@ -145,12 +145,12 @@ int Nexx__setupnic(Nexx__portt *port, const char *ifname, int secondary)
       return 0;
    }
 
-    for (i = 0; i < Nex_MAXBUF; i++)
+    for (i = 0; i < NEX_MAXBUF; i++)
    {
-      Nex_setupheader(&(port->txbuf[i]));
-      port->rxbufstat[i] = Nex_BUF_EMPTY;
+      nex_setupheader(&(port->txbuf[i]));
+      port->rxbufstat[i] = NEX_BUF_EMPTY;
    }
-   Nex_setupheader(&(port->txbuf2));
+   nex_setupheader(&(port->txbuf2));
 
    return 1;
 }
@@ -159,7 +159,7 @@ int Nexx__setupnic(Nexx__portt *port, const char *ifname, int secondary)
  * @param[in] port        = port context struct
  * @return 0
  */
-int Nexx__closenic(Nexx__portt *port)
+int nexx_closenic(nexx_portt *port)
 {
    timeEndPeriod(15);
 
@@ -185,9 +185,9 @@ int Nexx__closenic(Nexx__portt *port)
  * Ethertype is always ETH_P_ECAT.
  * @param[out] p = buffer
  */
-void Nex_setupheader(void *p)
+void nex_setupheader(void *p)
 {
-   Nex_etherheadert *bp;
+   nex_etherheadert *bp;
    bp = p;
    bp->da0 = htons(0xffff);
    bp->da1 = htons(0xffff);
@@ -202,7 +202,7 @@ void Nex_setupheader(void *p)
  * @param[in] port        = port context struct
  * @return new index.
  */
-int Nexx__getindex(Nexx__portt *port)
+int nexx_getindex(nexx_portt *port)
 {
    int idx;
    int cnt;
@@ -211,24 +211,24 @@ int Nexx__getindex(Nexx__portt *port)
 
    idx = port->lastidx + 1;
    /* index can't be larger than buffer array */
-   if (idx >= Nex_MAXBUF)
+   if (idx >= NEX_MAXBUF)
    {
       idx = 0;
    }
    cnt = 0;
    /* try to find unused index */
-   while ((port->rxbufstat[idx] != Nex_BUF_EMPTY) && (cnt < Nex_MAXBUF))
+   while ((port->rxbufstat[idx] != NEX_BUF_EMPTY) && (cnt < NEX_MAXBUF))
    {
       idx++;
       cnt++;
-      if (idx >= Nex_MAXBUF)
+      if (idx >= NEX_MAXBUF)
       {
          idx = 0;
       }
    }
-   port->rxbufstat[idx] = Nex_BUF_ALLOC;
+   port->rxbufstat[idx] = NEX_BUF_ALLOC;
    if (port->redstate != ECT_RED_NONE)
-      port->redport->rxbufstat[idx] = Nex_BUF_ALLOC;
+      port->redport->rxbufstat[idx] = NEX_BUF_ALLOC;
    port->lastidx = idx;
 
    LeaveCriticalSection(&(port->getindex_mutex));
@@ -241,7 +241,7 @@ int Nexx__getindex(Nexx__portt *port)
  * @param[in] idx      = index in buffer array
  * @param[in] bufstat   = status to set
  */
-void Nexx__setbufstat(Nexx__portt *port, int idx, int bufstat)
+void nexx_setbufstat(nexx_portt *port, int idx, int bufstat)
 {
    port->rxbufstat[idx] = bufstat;
    if (port->redstate != ECT_RED_NONE)
@@ -254,10 +254,10 @@ void Nexx__setbufstat(Nexx__portt *port, int idx, int bufstat)
  * @param[in] stacknumber   = 0=Primary 1=Secondary stack
  * @return socket send result
  */
-int Nexx__outframe(Nexx__portt *port, int idx, int stacknumber)
+int nexx_outframe(nexx_portt *port, int idx, int stacknumber)
 {
    int lp, rval;
-   Nex_stackT *stack;
+   nex_stackT *stack;
 
    if (!stacknumber)
    {
@@ -268,11 +268,11 @@ int Nexx__outframe(Nexx__portt *port, int idx, int stacknumber)
       stack = &(port->redport->stack);
    }
    lp = (*stack->txbuflength)[idx];
-   (*stack->rxbufstat)[idx] = Nex_BUF_TX;
+   (*stack->rxbufstat)[idx] = NEX_BUF_TX;
    rval = pcap_sendpacket(*stack->sock, (*stack->txbuf)[idx], lp);
    if (rval == PCAP_ERROR)
    {
-      (*stack->rxbufstat)[idx] = Nex_BUF_EMPTY;
+      (*stack->rxbufstat)[idx] = NEX_BUF_EMPTY;
    }
 
    return rval;
@@ -283,32 +283,32 @@ int Nexx__outframe(Nexx__portt *port, int idx, int stacknumber)
  * @param[in] idx      = index in tx buffer array
  * @return socket send result
  */
-int Nexx__outframe_red(Nexx__portt *port, int idx)
+int nexx_outframe_red(nexx_portt *port, int idx)
 {
-   Nex_comt *datagramP;
-   Nex_etherheadert *ehp;
+   nex_comt *datagramP;
+   nex_etherheadert *ehp;
    int rval;
 
-   ehp = (Nex_etherheadert *)&(port->txbuf[idx]);
+   ehp = (nex_etherheadert *)&(port->txbuf[idx]);
    /* rewrite MAC source address 1 to primary */
    ehp->sa1 = htons(priMAC[1]);
    /* transmit over primary socket*/
-   rval = Nexx__outframe(port, idx, 0);
+   rval = nexx_outframe(port, idx, 0);
    if (port->redstate != ECT_RED_NONE)
    {
       EnterCriticalSection( &(port->tx_mutex) );
-      ehp = (Nex_etherheadert *)&(port->txbuf2);
+      ehp = (nex_etherheadert *)&(port->txbuf2);
       /* use dummy frame for secondary socket transmit (BRD) */
-      datagramP = (Nex_comt*)&(port->txbuf2[ETH_HEADERSIZE]);
+      datagramP = (nex_comt*)&(port->txbuf2[ETH_HEADERSIZE]);
       /* write index to frame */
       datagramP->index = idx;
       /* rewrite MAC source address 1 to secondary */
       ehp->sa1 = htons(secMAC[1]);
       /* transmit over secondary socket */
-      port->redport->rxbufstat[idx] = Nex_BUF_TX;
+      port->redport->rxbufstat[idx] = NEX_BUF_TX;
       if (pcap_sendpacket(port->redport->sockhandle, (u_char const *)&(port->txbuf2), port->txbuflength2) == PCAP_ERROR)
       {
-         port->redport->rxbufstat[idx] = Nex_BUF_EMPTY;
+         port->redport->rxbufstat[idx] = NEX_BUF_EMPTY;
       }
       LeaveCriticalSection( &(port->tx_mutex) );
    }
@@ -321,10 +321,10 @@ int Nexx__outframe_red(Nexx__portt *port, int idx)
  * @param[in] stacknumber = 0=primary 1=secondary stack
  * @return >0 if frame is available and read
  */
-static int Nexx__recvpkt(Nexx__portt *port, int stacknumber)
+static int nexx_recvpkt(nexx_portt *port, int stacknumber)
 {
    int lp, bytesrx;
-   Nex_stackT *stack;
+   nex_stackT *stack;
    struct pcap_pkthdr * header;
    unsigned char const * pkt_data;
    int res;
@@ -359,8 +359,8 @@ static int Nexx__recvpkt(Nexx__portt *port, int stacknumber)
  * read frame with transmitted frame. To compensate for received frames that
  * are out-of-order all frames are stored in their respective indexed buffer.
  * If a frame was placed in the buffer previously, the function retreives it
- * from that buffer index without calling Nex_recvpkt. If the requested index
- * is not already in the buffer it calls Nex_recvpkt to fetch it. There are
+ * from that buffer index without calling nex_recvpkt. If the requested index
+ * is not already in the buffer it calls nex_recvpkt to fetch it. There are
  * three options now, 1 no frame read, so exit. 2 frame read but other
  * than requested index, store in buffer and exit. 3 frame read with matching
  * index, store in buffer, set completed flag in buffer status and exit.
@@ -369,17 +369,17 @@ static int Nexx__recvpkt(Nexx__portt *port, int stacknumber)
  * @param[in] idx         = requested index of frame
  * @param[in] stacknumber  = 0=primary 1=secondary stack
  * @return Workcounter if a frame is found with corresponding index, otherwise
- * Nex_NOFRAME or Nex_OTHERFRAME.
+ * NEX_NOFRAME or NEX_OTHERFRAME.
  */
-int Nexx__inframe(Nexx__portt *port, int idx, int stacknumber)
+int nexx_inframe(nexx_portt *port, int idx, int stacknumber)
 {
    uint16  l;
    int     rval;
    int     idxf;
-   Nex_etherheadert *ehp;
-   Nex_comt *ecp;
-   Nex_stackT *stack;
-   Nex_bufT *rxbuf;
+   nex_etherheadert *ehp;
+   nex_comt *ecp;
+   nex_stackT *stack;
+   nex_bufT *rxbuf;
 
    if (!stacknumber)
    {
@@ -389,29 +389,29 @@ int Nexx__inframe(Nexx__portt *port, int idx, int stacknumber)
    {
       stack = &(port->redport->stack);
    }
-   rval = Nex_NOFRAME;
+   rval = NEX_NOFRAME;
    rxbuf = &(*stack->rxbuf)[idx];
    /* check if requested index is already in buffer ? */
-   if ((idx < Nex_MAXBUF) && ((*stack->rxbufstat)[idx] == Nex_BUF_RCVD))
+   if ((idx < NEX_MAXBUF) && ((*stack->rxbufstat)[idx] == NEX_BUF_RCVD))
    {
       l = (*rxbuf)[0] + ((uint16)((*rxbuf)[1] & 0x0f) << 8);
       /* return WKC */
       rval = ((*rxbuf)[l] + ((uint16)(*rxbuf)[l + 1] << 8));
       /* mark as completed */
-      (*stack->rxbufstat)[idx] = Nex_BUF_COMPLETE;
+      (*stack->rxbufstat)[idx] = NEX_BUF_COMPLETE;
    }
    else
    {
       EnterCriticalSection(&(port->rx_mutex));
       /* non blocking call to retrieve frame from socket */
-      if (Nexx__recvpkt(port, stacknumber))
+      if (nexx_recvpkt(port, stacknumber))
       {
-         rval = Nex_OTHERFRAME;
-         ehp =(Nex_etherheadert*)(stack->tempbuf);
+         rval = NEX_OTHERFRAME;
+         ehp =(nex_etherheadert*)(stack->tempbuf);
          /* check if it is an EtherCAT frame */
          if (ehp->etype == htons(ETH_P_ECAT))
          {
-            ecp =(Nex_comt*)(&(*stack->tempbuf)[ETH_HEADERSIZE]);
+            ecp =(nex_comt*)(&(*stack->tempbuf)[ETH_HEADERSIZE]);
             l = etohs(ecp->elength) & 0x0fff;
             idxf = ecp->index;
             /* found index equals reqested index ? */
@@ -422,20 +422,20 @@ int Nexx__inframe(Nexx__portt *port, int idx, int stacknumber)
                /* return WKC */
                rval = ((*rxbuf)[l] + ((uint16)((*rxbuf)[l + 1]) << 8));
                /* mark as completed */
-               (*stack->rxbufstat)[idx] = Nex_BUF_COMPLETE;
+               (*stack->rxbufstat)[idx] = NEX_BUF_COMPLETE;
                /* store MAC source word 1 for redundant routing info */
                (*stack->rxsa)[idx] = ntohs(ehp->sa1);
             }
             else
             {
                /* check if index exist and someone is waiting for it */
-               if (idxf < Nex_MAXBUF && (*stack->rxbufstat)[idxf] == Nex_BUF_TX)
+               if (idxf < NEX_MAXBUF && (*stack->rxbufstat)[idxf] == NEX_BUF_TX)
                {
                   rxbuf = &(*stack->rxbuf)[idxf];
                   /* put it in the buffer array (strip ethernet header) */
                   memcpy(rxbuf, &(*stack->tempbuf)[ETH_HEADERSIZE], (*stack->txbuflength)[idxf] - ETH_HEADERSIZE);
                   /* mark as received */
-                  (*stack->rxbufstat)[idxf] = Nex_BUF_RCVD;
+                  (*stack->rxbufstat)[idxf] = NEX_BUF_RCVD;
                   (*stack->rxsa)[idxf] = ntohs(ehp->sa1);
                }
                else
@@ -463,13 +463,13 @@ int Nexx__inframe(Nexx__portt *port, int idx, int stacknumber)
  * @param[in] idx = requested index of frame
  * @param[in] tvs = timeout
  * @return Workcounter if a frame is found with corresponding index, otherwise
- * Nex_NOFRAME.
+ * NEX_NOFRAME.
  */
-static int Nexx__waitinframe_red(Nexx__portt *port, int idx, osal_timert *timer)
+static int nexx_waitinframe_red(nexx_portt *port, int idx, osal_timert *timer)
 {
    osal_timert timer2;
-   int wkc  = Nex_NOFRAME;
-   int wkc2 = Nex_NOFRAME;
+   int wkc  = NEX_NOFRAME;
+   int wkc2 = NEX_NOFRAME;
    int primrx, secrx;
 
    /* if not in redundant mode then always assume secondary is OK */
@@ -478,26 +478,26 @@ static int Nexx__waitinframe_red(Nexx__portt *port, int idx, osal_timert *timer)
    do
    {
       /* only read frame if not already in */
-      if (wkc <= Nex_NOFRAME)
-         wkc  = Nexx__inframe(port, idx, 0);
+      if (wkc <= NEX_NOFRAME)
+         wkc  = nexx_inframe(port, idx, 0);
       /* only try secondary if in redundant mode */
       if (port->redstate != ECT_RED_NONE)
       {
          /* only read frame if not already in */
-         if (wkc2 <= Nex_NOFRAME)
-            wkc2 = Nexx__inframe(port, idx, 1);
+         if (wkc2 <= NEX_NOFRAME)
+            wkc2 = nexx_inframe(port, idx, 1);
       }
    /* wait for both frames to arrive or timeout */
-   } while (((wkc <= Nex_NOFRAME) || (wkc2 <= Nex_NOFRAME)) && !osal_timer_is_expired(timer));
+   } while (((wkc <= NEX_NOFRAME) || (wkc2 <= NEX_NOFRAME)) && !osal_timer_is_expired(timer));
    /* only do redundant functions when in redundant mode */
    if (port->redstate != ECT_RED_NONE)
    {
       /* primrx if the reveived MAC source on primary socket */
       primrx = 0;
-      if (wkc > Nex_NOFRAME) primrx = port->rxsa[idx];
+      if (wkc > NEX_NOFRAME) primrx = port->rxsa[idx];
       /* secrx if the reveived MAC source on psecondary socket */
       secrx = 0;
-      if (wkc2 > Nex_NOFRAME) secrx = port->redport->rxsa[idx];
+      if (wkc2 > NEX_NOFRAME) secrx = port->redport->rxsa[idx];
 
       /* primary socket got secondary frame and secondary socket got primary frame */
       /* normal situation in redundant mode */
@@ -520,15 +520,15 @@ static int Nexx__waitinframe_red(Nexx__portt *port, int idx, osal_timert *timer)
             /* copy primary rx to tx buffer */
             memcpy(&(port->txbuf[idx][ETH_HEADERSIZE]), &(port->rxbuf[idx]), port->txbuflength[idx] - ETH_HEADERSIZE);
          }
-         osal_timer_start (&timer2, Nex_TIMEOUTRET);
+         osal_timer_start (&timer2, NEX_TIMEOUTRET);
          /* resend secondary tx */
-         Nexx__outframe(port, idx, 1);
+         nexx_outframe(port, idx, 1);
          do
          {
             /* retrieve frame */
-            wkc2 = Nexx__inframe(port, idx, 1);
-         } while ((wkc2 <= Nex_NOFRAME) && !osal_timer_is_expired(&timer2));
-         if (wkc2 > Nex_NOFRAME)
+            wkc2 = nexx_inframe(port, idx, 1);
+         } while ((wkc2 <= NEX_NOFRAME) && !osal_timer_is_expired(&timer2));
+         if (wkc2 > NEX_NOFRAME)
          {
             /* copy secondary result to primary rx buffer */
             memcpy(&(port->rxbuf[idx]), &(port->redport->rxbuf[idx]), port->txbuflength[idx] - ETH_HEADERSIZE);
@@ -537,24 +537,24 @@ static int Nexx__waitinframe_red(Nexx__portt *port, int idx, osal_timert *timer)
       }
    }
 
-   /* return WKC or Nex_NOFRAME */
+   /* return WKC or NEX_NOFRAME */
    return wkc;
 }
 
-/** Blocking receive frame function. Calls Nex_waitinframe_red().
+/** Blocking receive frame function. Calls nex_waitinframe_red().
  * @param[in] port        = port context struct
  * @param[in] idx = requested index of frame
  * @param[in] timeout = timeout in us
  * @return Workcounter if a frame is found with corresponding index, otherwise
- * Nex_NOFRAME.
+ * NEX_NOFRAME.
  */
-int Nexx__waitinframe(Nexx__portt *port, int idx, int timeout)
+int nexx_waitinframe(nexx_portt *port, int idx, int timeout)
 {
    int wkc;
    osal_timert timer;
 
    osal_timer_start (&timer, timeout);
-   wkc = Nexx__waitinframe_red(port, idx, &timer);
+   wkc = nexx_waitinframe_red(port, idx, &timer);
 
    return wkc;
 }
@@ -564,91 +564,91 @@ int Nexx__waitinframe(Nexx__portt *port, int idx, int timeout)
  * for an answer and returns the workcounter. The function retries if time is
  * left and the result is WKC=0 or no frame received.
  *
- * The function calls Nex_outframe_red() and Nex_waitinframe_red().
+ * The function calls nex_outframe_red() and nex_waitinframe_red().
  *
  * @param[in] port        = port context struct
  * @param[in] idx      = index of frame
  * @param[in] timeout  = timeout in us
- * @return Workcounter or Nex_NOFRAME
+ * @return Workcounter or NEX_NOFRAME
  */
-int Nexx__srconfirm(Nexx__portt *port, int idx, int timeout)
+int nexx_srconfirm(nexx_portt *port, int idx, int timeout)
 {
-   int wkc = Nex_NOFRAME;
+   int wkc = NEX_NOFRAME;
    osal_timert timer1, timer2;
 
    osal_timer_start (&timer1, timeout);
    do
    {
       /* tx frame on primary and if in redundant mode a dummy on secondary */
-      Nexx__outframe_red(port, idx);
-      if (timeout < Nex_TIMEOUTRET)
+      nexx_outframe_red(port, idx);
+      if (timeout < NEX_TIMEOUTRET)
       {
          osal_timer_start (&timer2, timeout);
       }
       else
       {
          /* normally use partial timout for rx */
-         osal_timer_start (&timer2, Nex_TIMEOUTRET);
+         osal_timer_start (&timer2, NEX_TIMEOUTRET);
       }
       /* get frame from primary or if in redundant mode possibly from secondary */
-      wkc = Nexx__waitinframe_red(port, idx, &timer2);
+      wkc = nexx_waitinframe_red(port, idx, &timer2);
    /* wait for answer with WKC>=0 or otherwise retry until timeout */
-   } while ((wkc <= Nex_NOFRAME) && !osal_timer_is_expired (&timer1));
+   } while ((wkc <= NEX_NOFRAME) && !osal_timer_is_expired (&timer1));
    /* if nothing received, clear buffer index status so it can be used again */
-   if (wkc <= Nex_NOFRAME)
+   if (wkc <= NEX_NOFRAME)
    {
-      Nexx__setbufstat(port, idx, Nex_BUF_EMPTY);
+      nexx_setbufstat(port, idx, NEX_BUF_EMPTY);
    }
 
    return wkc;
 }
 
 
+#ifdef NEX_VER1
 
-
-int Nex_setupnic(const char *ifname, int secondary)
+int nex_setupnic(const char *ifname, int secondary)
 {
-   return Nexx__setupnic(&Nexx__port, ifname, secondary);
+   return nexx_setupnic(&nexx_port, ifname, secondary);
 }
 
-int Nex_closenic(void)
+int nex_closenic(void)
 {
-   return Nexx__closenic(&Nexx__port);
+   return nexx_closenic(&nexx_port);
 }
 
-int Nex_getindex(void)
+int nex_getindex(void)
 {
-   return Nexx__getindex(&Nexx__port);
+   return nexx_getindex(&nexx_port);
 }
 
-void Nex_setbufstat(int idx, int bufstat)
+void nex_setbufstat(int idx, int bufstat)
 {
-   Nexx__setbufstat(&Nexx__port, idx, bufstat);
+   nexx_setbufstat(&nexx_port, idx, bufstat);
 }
 
-int Nex_outframe(int idx, int stacknumber)
+int nex_outframe(int idx, int stacknumber)
 {
-   return Nexx__outframe(&Nexx__port, idx, stacknumber);
+   return nexx_outframe(&nexx_port, idx, stacknumber);
 }
 
-int Nex_outframe_red(int idx)
+int nex_outframe_red(int idx)
 {
-   return Nexx__outframe_red(&Nexx__port, idx);
+   return nexx_outframe_red(&nexx_port, idx);
 }
 
-int Nex_inframe(int idx, int stacknumber)
+int nex_inframe(int idx, int stacknumber)
 {
-   return Nexx__inframe(&Nexx__port, idx, stacknumber);
+   return nexx_inframe(&nexx_port, idx, stacknumber);
 }
 
-int Nex_waitinframe(int idx, int timeout)
+int nex_waitinframe(int idx, int timeout)
 {
-   return Nexx__waitinframe(&Nexx__port, idx, timeout);
+   return nexx_waitinframe(&nexx_port, idx, timeout);
 }
 
-int Nex_srconfirm(int idx, int timeout)
+int nex_srconfirm(int idx, int timeout)
 {
-   return Nexx__srconfirm(&Nexx__port, idx, timeout);
+   return nexx_srconfirm(&nexx_port, idx, timeout);
 }
 
-
+#endif

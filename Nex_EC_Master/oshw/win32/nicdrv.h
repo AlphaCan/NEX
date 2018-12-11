@@ -27,55 +27,55 @@ typedef struct
    /** socket connection used */
    pcap_t      **sock;
    /** tx buffer */
-   Nex_bufT     (*txbuf)[Nex_MAXBUF];
+   nex_bufT     (*txbuf)[NEX_MAXBUF];
    /** tx buffer lengths */
-   int         (*txbuflength)[Nex_MAXBUF];
+   int         (*txbuflength)[NEX_MAXBUF];
    /** temporary receive buffer */
-   Nex_bufT     *tempbuf;
+   nex_bufT     *tempbuf;
    /** rx buffers */
-   Nex_bufT     (*rxbuf)[Nex_MAXBUF];
+   nex_bufT     (*rxbuf)[NEX_MAXBUF];
    /** rx buffer status fields */
-   int         (*rxbufstat)[Nex_MAXBUF];
+   int         (*rxbufstat)[NEX_MAXBUF];
    /** received MAC source address (middle word) */
-   int         (*rxsa)[Nex_MAXBUF];
-} Nex_stackT;
+   int         (*rxsa)[NEX_MAXBUF];
+} nex_stackT;
 
 /** pointer structure to buffers for redundant port */
 typedef struct
 {
-   Nex_stackT   stack;
+   nex_stackT   stack;
    pcap_t      *sockhandle;
    /** rx buffers */
-   Nex_bufT rxbuf[Nex_MAXBUF];
+   nex_bufT rxbuf[NEX_MAXBUF];
    /** rx buffer status */
-   int rxbufstat[Nex_MAXBUF];
+   int rxbufstat[NEX_MAXBUF];
    /** rx MAC source address */
-   int rxsa[Nex_MAXBUF];
+   int rxsa[NEX_MAXBUF];
    /** temporary rx buffer */
-   Nex_bufT tempinbuf;
-} Nexx__redportt;
+   nex_bufT tempinbuf;
+} nexx_redportt;
 
 /** pointer structure to buffers, vars and mutexes for port instantiation */
 typedef struct
 {
-   Nex_stackT   stack;
+   nex_stackT   stack;
    pcap_t      *sockhandle;
    /** rx buffers */
-   Nex_bufT rxbuf[Nex_MAXBUF];
+   nex_bufT rxbuf[NEX_MAXBUF];
    /** rx buffer status */
-   int rxbufstat[Nex_MAXBUF];
+   int rxbufstat[NEX_MAXBUF];
    /** rx MAC source address */
-   int rxsa[Nex_MAXBUF];
+   int rxsa[NEX_MAXBUF];
    /** temporary rx buffer */
-   Nex_bufT tempinbuf;
+   nex_bufT tempinbuf;
    /** temporary rx buffer status */
    int tempinbufs;
    /** transmit buffers */
-   Nex_bufT txbuf[Nex_MAXBUF];
+   nex_bufT txbuf[NEX_MAXBUF];
    /** transmit buffer lenghts */
-   int txbuflength[Nex_MAXBUF];
+   int txbuflength[NEX_MAXBUF];
    /** temporary tx buffer */
-   Nex_bufT txbuf2;
+   nex_bufT txbuf2;
    /** temporary tx buffer length */
    int txbuflength2;
    /** last used frame index */
@@ -83,38 +83,38 @@ typedef struct
    /** current redundancy state */
    int redstate;
    /** pointer to redundancy port and buffers */
-   Nexx__redportt *redport;
+   nexx_redportt *redport;
    CRITICAL_SECTION getindex_mutex;
    CRITICAL_SECTION tx_mutex;
    CRITICAL_SECTION rx_mutex;
-} Nexx__portt;
+} nexx_portt;
 
 extern const uint16 priMAC[3];
 extern const uint16 secMAC[3];
 
+#ifdef NEX_VER1
+extern nexx_portt     nexx_port;
+extern nexx_redportt  nexx_redport;
 
-extern Nexx__portt     Nexx__port;
-extern Nexx__redportt  Nexx__redport;
+int nex_setupnic(const char * ifname, int secondary);
+int nex_closenic(void);
+void nex_setbufstat(int idx, int bufstat);
+int nex_getindex(void);
+int nex_outframe(int idx, int sock);
+int nex_outframe_red(int idx);
+int nex_waitinframe(int idx, int timeout);
+int nex_srconfirm(int idx,int timeout);
+#endif
 
-int Nex_setupnic(const char * ifname, int secondary);
-int Nex_closenic(void);
-void Nex_setbufstat(int idx, int bufstat);
-int Nex_getindex(void);
-int Nex_outframe(int idx, int sock);
-int Nex_outframe_red(int idx);
-int Nex_waitinframe(int idx, int timeout);
-int Nex_srconfirm(int idx,int timeout);
-
-
-void Nex_setupheader(void *p);
-int Nexx__setupnic(Nexx__portt *port, const char * ifname, int secondary);
-int Nexx__closenic(Nexx__portt *port);
-void Nexx__setbufstat(Nexx__portt *port, int idx, int bufstat);
-int Nexx__getindex(Nexx__portt *port);
-int Nexx__outframe(Nexx__portt *port, int idx, int sock);
-int Nexx__outframe_red(Nexx__portt *port, int idx);
-int Nexx__waitinframe(Nexx__portt *port, int idx, int timeout);
-int Nexx__srconfirm(Nexx__portt *port, int idx,int timeout);
+void nex_setupheader(void *p);
+int nexx_setupnic(nexx_portt *port, const char * ifname, int secondary);
+int nexx_closenic(nexx_portt *port);
+void nexx_setbufstat(nexx_portt *port, int idx, int bufstat);
+int nexx_getindex(nexx_portt *port);
+int nexx_outframe(nexx_portt *port, int idx, int sock);
+int nexx_outframe_red(nexx_portt *port, int idx);
+int nexx_waitinframe(nexx_portt *port, int idx, int timeout);
+int nexx_srconfirm(nexx_portt *port, int idx,int timeout);
 
 #ifdef __cplusplus
 }

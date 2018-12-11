@@ -16,20 +16,20 @@ extern "C"
 {
 #endif
 
-#define Nex_SOE_DATASTATE_B   0x01
-#define Nex_SOE_NAME_B        0x02
-#define Nex_SOE_ATTRIBUTE_B   0x04
-#define Nex_SOE_UNIT_B        0x08
-#define Nex_SOE_MIN_B         0x10
-#define Nex_SOE_MAX_B         0x20
-#define Nex_SOE_VALUE_B       0x40
-#define Nex_SOE_DEFAULT_B     0x80
+#define NEX_SOE_DATASTATE_B   0x01
+#define NEX_SOE_NAME_B        0x02
+#define NEX_SOE_ATTRIBUTE_B   0x04
+#define NEX_SOE_UNIT_B        0x08
+#define NEX_SOE_MIN_B         0x10
+#define NEX_SOE_MAX_B         0x20
+#define NEX_SOE_VALUE_B       0x40
+#define NEX_SOE_DEFAULT_B     0x80
 
-#define Nex_SOE_MAXNAME       60
-#define Nex_SOE_MAXMAPPING    64
+#define NEX_SOE_MAXNAME       60
+#define NEX_SOE_MAXMAPPING    64
 
-#define Nex_IDN_MDTCONFIG     24
-#define Nex_IDN_ATCONFIG      16
+#define NEX_IDN_MDTCONFIG     24
+#define NEX_IDN_ATCONFIG      16
 
 /** SoE name structure */
 PACKED_BEGIN
@@ -39,8 +39,8 @@ typedef struct PACKED
    uint16     currentlength;
    /** maximum length in bytes of list */
    uint16     maxlength;
-   char       name[Nex_SOE_MAXNAME];
-} Nex_SoEnamet;
+   char       name[NEX_SOE_MAXNAME];
+} nex_SoEnamet;
 PACKED_END
 
 /** SoE list structure */
@@ -58,7 +58,7 @@ typedef struct PACKED
       uint32  dword[2];
       uint64  lword[1];
    };
-} Nex_SoElistt;
+} nex_SoElistt;
 PACKED_END
 
 /** SoE IDN mapping structure */
@@ -69,22 +69,22 @@ typedef struct PACKED
    uint16     currentlength;
    /** maximum length in bytes of list */
    uint16     maxlength;
-   uint16     idn[Nex_SOE_MAXMAPPING];
-} Nex_SoEmappingt;
+   uint16     idn[NEX_SOE_MAXMAPPING];
+} nex_SoEmappingt;
 PACKED_END
 
-#define Nex_SOE_LENGTH_1         0x00
-#define Nex_SOE_LENGTH_2         0x01
-#define Nex_SOE_LENGTH_4         0x02
-#define Nex_SOE_LENGTH_8         0x03
-#define Nex_SOE_TYPE_BINARY      0x00
-#define Nex_SOE_TYPE_UINT        0x01
-#define Nex_SOE_TYPE_INT         0x02
-#define Nex_SOE_TYPE_HEX         0x03
-#define Nex_SOE_TYPE_STRING      0x04
-#define Nex_SOE_TYPE_IDN         0x05
-#define Nex_SOE_TYPE_FLOAT       0x06
-#define Nex_SOE_TYPE_PARAMETER   0x07
+#define NEX_SOE_LENGTH_1         0x00
+#define NEX_SOE_LENGTH_2         0x01
+#define NEX_SOE_LENGTH_4         0x02
+#define NEX_SOE_LENGTH_8         0x03
+#define NEX_SOE_TYPE_BINARY      0x00
+#define NEX_SOE_TYPE_UINT        0x01
+#define NEX_SOE_TYPE_INT         0x02
+#define NEX_SOE_TYPE_HEX         0x03
+#define NEX_SOE_TYPE_STRING      0x04
+#define NEX_SOE_TYPE_IDN         0x05
+#define NEX_SOE_TYPE_FLOAT       0x06
+#define NEX_SOE_TYPE_PARAMETER   0x07
 
 /** SoE attribute structure */
 PACKED_BEGIN
@@ -110,18 +110,18 @@ typedef struct PACKED
    /** write protected in op */
    uint32     wpop        :1;
    uint32     reserved2   :1;
-} Nex_SoEattributet;
+} nex_SoEattributet;
 PACKED_END
 
+#ifdef NEX_VER1
+int nex_SoEread(uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int *psize, void *p, int timeout);
+int nex_SoEwrite(uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int psize, void *p, int timeout);
+int nex_readIDNmap(uint16 slave, int *Osize, int *Isize);
+#endif
 
-int Nex_SoEread(uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int *psize, void *p, int timeout);
-int Nex_SoEwrite(uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int psize, void *p, int timeout);
-int Nex_readIDNmap(uint16 slave, int *Osize, int *Isize);
-
-
-int Nexx__SoEread(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int *psize, void *p, int timeout);
-int Nexx__SoEwrite(Nexx__contextt *context, uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int psize, void *p, int timeout);
-int Nexx__readIDNmap(Nexx__contextt *context, uint16 slave, int *Osize, int *Isize);
+int nexx_SoEread(nexx_contextt *context, uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int *psize, void *p, int timeout);
+int nexx_SoEwrite(nexx_contextt *context, uint16 slave, uint8 driveNo, uint8 elementflags, uint16 idn, int psize, void *p, int timeout);
+int nexx_readIDNmap(nexx_contextt *context, uint16 slave, int *Osize, int *Isize);
 
 #ifdef __cplusplus
 }

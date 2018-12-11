@@ -16,14 +16,14 @@ extern "C"
 {
 #endif
 
-char* Nex_sdoerror2string( uint32 sdoerrorcode);
-char* Nex_ALstatuscode2string( uint16 ALstatuscode);
-char* Nex_soeerror2string( uint16 errorcode);
-char* Nexx__elist2string(Nexx__contextt *context);
+char* nex_sdoerror2string( uint32 sdoerrorcode);
+char* nex_ALstatuscode2string( uint16 ALstatuscode);
+char* nex_soeerror2string( uint16 errorcode);
+char* nexx_elist2string(nexx_contextt *context);
 
-
-char* Nex_elist2string(void);
-
+#ifdef NEX_VER1
+char* nex_elist2string(void);
+#endif
 
 #ifdef __cplusplus
 }

@@ -19,7 +19,7 @@
 #include "ethercatmain.h"
 #include "ethercatfoe.h"
 
-#define Nex_MAXFOEDATA 512
+#define NEX_MAXFOEDATA 512
 
 /** FOE structure.
  * Used for Read, Write, Data, Ack and Error mailbox packets.
@@ -27,7 +27,7 @@
 PACKED_BEGIN
 typedef struct PACKED
 {
-   Nex_mbxheadert MbxHeader;
+   nex_mbxheadert MbxHeader;
    uint8         OpCode;
    uint8         Reserved;
    union
@@ -38,11 +38,11 @@ typedef struct PACKED
    };
    union
    {
-      char          FileName[Nex_MAXFOEDATA];
-      uint8         Data[Nex_MAXFOEDATA];
-      char          ErrorText[Nex_MAXFOEDATA];
+      char          FileName[NEX_MAXFOEDATA];
+      uint8         Data[NEX_MAXFOEDATA];
+      char          ErrorText[NEX_MAXFOEDATA];
    };
-} Nex_FOEt;
+} nex_FOEt;
 PACKED_END
 
 /** FoE progress hook.
@@ -51,7 +51,7 @@ PACKED_END
  * @param[in]     hook       = Pointer to hook function.
  * @return 1
  */
-int Nexx__FOEdefinehook(Nexx__contextt *context, void *hook)
+int nexx_FOEdefinehook(nexx_contextt *context, void *hook)
 {
   context->FOEhook = hook;
   return 1;
@@ -65,27 +65,27 @@ int Nexx__FOEdefinehook(Nexx__contextt *context, void *hook)
  * @param[in]     password   = password.
  * @param[in,out] psize      = Size in bytes of file buffer, returns bytes read from file.
  * @param[out]    p          = Pointer to file buffer
- * @param[in]     timeout    = Timeout per mailbox cycle in us, standard is Nex_TIMEOUTRXM
+ * @param[in]     timeout    = Timeout per mailbox cycle in us, standard is NEX_TIMEOUTRXM
  * @return Workcounter from last slave response
  */
-int Nexx__FOEread(Nexx__contextt *context, uint16 slave, char *filename, uint32 password, int *psize, void *p, int timeout)
+int nexx_FOEread(nexx_contextt *context, uint16 slave, char *filename, uint32 password, int *psize, void *p, int timeout)
 {
-   Nex_FOEt *FOEp, *aFOEp;
+   nex_FOEt *FOEp, *aFOEp;
    int wkc;
    int32 dataread = 0;
    int32 buffersize, packetnumber, prevpacket = 0;
    uint16 fnsize, maxdata, segmentdata;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_mbxbuft MbxIn, MbxOut;
    uint8 cnt;
    boolean worktodo;
 
    buffersize = *psize;
-   Nex_clearmbx(&MbxIn);
+   nex_clearmbx(&MbxIn);
    /* Empty slave out mailbox if something is in. Timout set to 0 */
-   wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   aFOEp = (Nex_FOEt *)&MbxIn;
-   FOEp = (Nex_FOEt *)&MbxOut;
+   wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   aFOEp = (nex_FOEt *)&MbxIn;
+   FOEp = (nex_FOEt *)&MbxOut;
    fnsize = (uint16)strlen(filename);
    maxdata = context->slavelist[slave].mbx_l - 12;
    if (fnsize > maxdata)
@@ -96,7 +96,7 @@ int Nexx__FOEread(Nexx__contextt *context, uint16 slave, char *filename, uint32 
    FOEp->MbxHeader.address = htoes(0x0000);
    FOEp->MbxHeader.priority = 0x00;
    /* get new mailbox count value, used as session handle */
-   cnt = Nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
+   cnt = nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
    context->slavelist[slave].mbx_cnt = cnt;
    FOEp->MbxHeader.mbxtype = ECT_MBXT_FOE + (cnt << 4); /* FoE */
    FOEp->OpCode = ECT_FOE_READ;
@@ -104,16 +104,16 @@ int Nexx__FOEread(Nexx__contextt *context, uint16 slave, char *filename, uint32 
    /* copy filename in mailbox */
    memcpy(&FOEp->FileName[0], filename, fnsize);
    /* send FoE request to slave */
-   wkc = Nexx__mbxsend(context, slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+   wkc = nexx_mbxsend(context, slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
    if (wkc > 0) /* succeeded to place mailbox in slave ? */
    {
       do
       {
          worktodo = FALSE;
          /* clean mailboxbuffer */
-         Nex_clearmbx(&MbxIn);
+         nex_clearmbx(&MbxIn);
          /* read slave response */
-         wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, timeout);
+         wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, timeout);
          if (wkc > 0) /* succeeded to read slave response ? */
          {
             /* slave response should be FoE */
@@ -136,13 +136,13 @@ int Nexx__FOEread(Nexx__contextt *context, uint16 slave, char *filename, uint32 
                      FOEp->MbxHeader.address = htoes(0x0000);
                      FOEp->MbxHeader.priority = 0x00;
                      /* get new mailbox count value */
-                     cnt = Nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
+                     cnt = nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
                      context->slavelist[slave].mbx_cnt = cnt;
                      FOEp->MbxHeader.mbxtype = ECT_MBXT_FOE + (cnt << 4); /* FoE */
                      FOEp->OpCode = ECT_FOE_ACK;
                      FOEp->PacketNumber = htoel(packetnumber);
                      /* send FoE ack to slave */
-                     wkc = Nexx__mbxsend(context, slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+                     wkc = nexx_mbxsend(context, slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
                      if (wkc <= 0)
                      {
                         worktodo = FALSE;
@@ -155,7 +155,7 @@ int Nexx__FOEread(Nexx__contextt *context, uint16 slave, char *filename, uint32 
                   else
                   {
                      /* FoE error */
-                     wkc = -Nex_ERR_TYPE_FOE_BUF2SMALL;
+                     wkc = -NEX_ERR_TYPE_FOE_BUF2SMALL;
                   }
                }
                else
@@ -163,19 +163,19 @@ int Nexx__FOEread(Nexx__contextt *context, uint16 slave, char *filename, uint32 
                   if(aFOEp->OpCode == ECT_FOE_ERROR)
                   {
                      /* FoE error */
-                     wkc = -Nex_ERR_TYPE_FOE_ERROR;
+                     wkc = -NEX_ERR_TYPE_FOE_ERROR;
                   }
                   else
                   {
                      /* unexpected mailbox received */
-                     wkc = -Nex_ERR_TYPE_PACKET_ERROR;
+                     wkc = -NEX_ERR_TYPE_PACKET_ERROR;
                   }
                }
             }
             else
             {
                /* unexpected mailbox received */
-               wkc = -Nex_ERR_TYPE_PACKET_ERROR;
+               wkc = -NEX_ERR_TYPE_PACKET_ERROR;
             }
             *psize = dataread;
          }
@@ -193,27 +193,27 @@ int Nexx__FOEread(Nexx__contextt *context, uint16 slave, char *filename, uint32 
  * @param[in]  password   = password.
  * @param[in]  psize      = Size in bytes of file buffer.
  * @param[out] p          = Pointer to file buffer
- * @param[in]  timeout    = Timeout per mailbox cycle in us, standard is Nex_TIMEOUTRXM
+ * @param[in]  timeout    = Timeout per mailbox cycle in us, standard is NEX_TIMEOUTRXM
  * @return Workcounter from last slave response
  */
-int Nexx__FOEwrite(Nexx__contextt *context, uint16 slave, char *filename, uint32 password, int psize, void *p, int timeout)
+int nexx_FOEwrite(nexx_contextt *context, uint16 slave, char *filename, uint32 password, int psize, void *p, int timeout)
 {
-   Nex_FOEt *FOEp, *aFOEp;
+   nex_FOEt *FOEp, *aFOEp;
    int wkc;
    int32 packetnumber, sendpacket = 0;
    uint16 fnsize, maxdata;
    int segmentdata;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_mbxbuft MbxIn, MbxOut;
    uint8 cnt;
    boolean worktodo, dofinalzero;
    int tsize;
 
-   Nex_clearmbx(&MbxIn);
+   nex_clearmbx(&MbxIn);
    /* Empty slave out mailbox if something is in. Timout set to 0 */
-   wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   aFOEp = (Nex_FOEt *)&MbxIn;
-   FOEp = (Nex_FOEt *)&MbxOut;
+   wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   aFOEp = (nex_FOEt *)&MbxIn;
+   FOEp = (nex_FOEt *)&MbxOut;
    dofinalzero = FALSE;
    fnsize = (uint16)strlen(filename);
    maxdata = context->slavelist[slave].mbx_l - 12;
@@ -225,7 +225,7 @@ int Nexx__FOEwrite(Nexx__contextt *context, uint16 slave, char *filename, uint32
    FOEp->MbxHeader.address = htoes(0x0000);
    FOEp->MbxHeader.priority = 0x00;
    /* get new mailbox count value, used as session handle */
-   cnt = Nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
+   cnt = nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
    context->slavelist[slave].mbx_cnt = cnt;
    FOEp->MbxHeader.mbxtype = ECT_MBXT_FOE + (cnt << 4); /* FoE */
    FOEp->OpCode = ECT_FOE_WRITE;
@@ -233,16 +233,16 @@ int Nexx__FOEwrite(Nexx__contextt *context, uint16 slave, char *filename, uint32
    /* copy filename in mailbox */
    memcpy(&FOEp->FileName[0], filename, fnsize);
    /* send FoE request to slave */
-   wkc = Nexx__mbxsend(context, slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+   wkc = nexx_mbxsend(context, slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
    if (wkc > 0) /* succeeded to place mailbox in slave ? */
    {
       do
       {
          worktodo = FALSE;
          /* clean mailboxbuffer */
-         Nex_clearmbx(&MbxIn);
+         nex_clearmbx(&MbxIn);
          /* read slave response */
-         wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, timeout);
+         wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, timeout);
          if (wkc > 0) /* succeeded to read slave response ? */
          {
             /* slave response should be FoE */
@@ -280,7 +280,7 @@ int Nexx__FOEwrite(Nexx__contextt *context, uint16 slave, char *filename, uint32
                            FOEp->MbxHeader.address = htoes(0x0000);
                            FOEp->MbxHeader.priority = 0x00;
                            /* get new mailbox count value */
-                           cnt = Nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
+                           cnt = nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
                            context->slavelist[slave].mbx_cnt = cnt;
                            FOEp->MbxHeader.mbxtype = ECT_MBXT_FOE + (cnt << 4); /* FoE */
                            FOEp->OpCode = ECT_FOE_DATA;
@@ -289,7 +289,7 @@ int Nexx__FOEwrite(Nexx__contextt *context, uint16 slave, char *filename, uint32
                            memcpy(&FOEp->Data[0], p, segmentdata);
                            p = (uint8 *)p + segmentdata;
                            /* send FoE data to slave */
-                           wkc = Nexx__mbxsend(context, slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+                           wkc = nexx_mbxsend(context, slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
                            if (wkc <= 0)
                            {
                               worktodo = FALSE;
@@ -299,7 +299,7 @@ int Nexx__FOEwrite(Nexx__contextt *context, uint16 slave, char *filename, uint32
                      else
                      {
                         /* FoE error */
-                        wkc = -Nex_ERR_TYPE_FOE_PACKETNUMBER;
+                        wkc = -NEX_ERR_TYPE_FOE_PACKETNUMBER;
                      }
                      break;
                   }
@@ -324,18 +324,18 @@ int Nexx__FOEwrite(Nexx__contextt *context, uint16 slave, char *filename, uint32
                      /* FoE error */
                      if (aFOEp->ErrorCode == 0x8001)
                      {
-                        wkc = -Nex_ERR_TYPE_FOE_FILE_NOTFOUND;
+                        wkc = -NEX_ERR_TYPE_FOE_FILE_NOTFOUND;
                      }
                      else
                      {
-                        wkc = -Nex_ERR_TYPE_FOE_ERROR;
+                        wkc = -NEX_ERR_TYPE_FOE_ERROR;
                      }
                      break;
                   }
                   default:
                   {
                      /* unexpected mailbox received */
-                     wkc = -Nex_ERR_TYPE_PACKET_ERROR;
+                     wkc = -NEX_ERR_TYPE_PACKET_ERROR;
                      break;
                   }
                }
@@ -343,7 +343,7 @@ int Nexx__FOEwrite(Nexx__contextt *context, uint16 slave, char *filename, uint32
             else
             {
                /* unexpected mailbox received */
-               wkc = -Nex_ERR_TYPE_PACKET_ERROR;
+               wkc = -NEX_ERR_TYPE_PACKET_ERROR;
             }
          }
       } while (worktodo);
@@ -352,19 +352,19 @@ int Nexx__FOEwrite(Nexx__contextt *context, uint16 slave, char *filename, uint32
    return wkc;
 }
 
-
-int Nex_FOEdefinehook(void *hook)
+#ifdef NEX_VER1
+int nex_FOEdefinehook(void *hook)
 {
-   return Nexx__FOEdefinehook(&Nexx__context, hook);
+   return nexx_FOEdefinehook(&nexx_context, hook);
 }
 
-int Nex_FOEread(uint16 slave, char *filename, uint32 password, int *psize, void *p, int timeout)
+int nex_FOEread(uint16 slave, char *filename, uint32 password, int *psize, void *p, int timeout)
 {
-   return Nexx__FOEread(&Nexx__context, slave, filename, password, psize, p, timeout);
+   return nexx_FOEread(&nexx_context, slave, filename, password, psize, p, timeout);
 }
 
-int Nex_FOEwrite(uint16 slave, char *filename, uint32 password, int psize, void *p, int timeout)
+int nex_FOEwrite(uint16 slave, char *filename, uint32 password, int psize, void *p, int timeout)
 {
-   return Nexx__FOEwrite(&Nexx__context, slave, filename, password, psize, p, timeout);
+   return nexx_FOEwrite(&nexx_context, slave, filename, password, psize, p, timeout);
 }
-
+#endif

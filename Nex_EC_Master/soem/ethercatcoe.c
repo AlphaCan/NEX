@@ -1,8 +1,14 @@
-/** 
- * 
- * EtherCAT COE SDO读写功能函数
+/*
+ * Licensed under the GNU General Public License version 2 with exceptions. See
+ * LICENSE file in the project root for full license information
+ */
+
+/** \file
+ * \brief
+ * CAN over EtherCAT (CoE) module.
  *
-  */
+ * SDO read / write and SDO service functions
+ */
 
 #include <stdio.h>
 #include <string.h>
@@ -17,7 +23,7 @@
 PACKED_BEGIN
 typedef struct PACKED
 {
-   Nex_mbxheadert   MbxHeader;
+   nex_mbxheadert   MbxHeader;
    uint16          CANOpen;
    uint8           Command;
    uint16          Index;
@@ -28,14 +34,14 @@ typedef struct PACKED
       uint16  wdata[0x100];
       uint32  ldata[0x80];
    };
-} Nex_SDOt;
+} nex_SDOt;
 PACKED_END
 
 /** SDO service structure */
 PACKED_BEGIN
 typedef struct PACKED
 {
-   Nex_mbxheadert   MbxHeader;
+   nex_mbxheadert   MbxHeader;
    uint16          CANOpen;
    uint8           Opcode;
    uint8           Reserved;
@@ -46,105 +52,105 @@ typedef struct PACKED
       uint16  wdata[0x100];
       uint32  ldata[0x80];
    };
-} Nex_SDOservicet;
+} nex_SDOservicet;
 PACKED_END
 
-/** 报告SDO错误
+/** Report SDO error.
  *
- * @param[in]  context    context结构体
- * @param[in]  Slave      从站号
- * @param[in]  Index      生成错误的索引
- * @param[in]  SubIdx     生成错误的子索引
- * @param[in]  AbortCode  参考EtherCAT文档
+ * @param[in]  context    = context struct
+ * @param[in]  Slave      = Slave number
+ * @param[in]  Index      = Index that generated error
+ * @param[in]  SubIdx     = Subindex that generated error
+ * @param[in]  AbortCode  = Abortcode, see EtherCAT documentation for list
  */
-void Nexx__SDOerror(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 SubIdx, int32 AbortCode)
+void nexx_SDOerror(nexx_contextt *context, uint16 Slave, uint16 Index, uint8 SubIdx, int32 AbortCode)
 {
-   Nex_errort Ec;
+   nex_errort Ec;
 
-   memset(&Ec, 0, sizeof(Ec));//清零
-   Ec.Time = osal_current_time();//得到时间
-   Ec.Slave = Slave;//发生错误的从站号
-   Ec.Index = Index;//发生错误的索引
-   Ec.SubIdx = SubIdx;//发生错误的子索引
-   *(context->ecaterror) = TRUE;//发生错的标志置位
-   Ec.Etype = Nex_ERR_TYPE_SDO_ERROR;//错误类型
-   Ec.AbortCode = AbortCode;//错误代码
-   Nexx__pusherror(context, &Ec);//推送错误信息
+   memset(&Ec, 0, sizeof(Ec));
+   Ec.Time = osal_current_time();
+   Ec.Slave = Slave;
+   Ec.Index = Index;
+   Ec.SubIdx = SubIdx;
+   *(context->ecaterror) = TRUE;
+   Ec.Etype = NEX_ERR_TYPE_SDO_ERROR;
+   Ec.AbortCode = AbortCode;
+   nexx_pusherror(context, &Ec);
 }
 
-/** 报告SDOINFO错误
+/** Report SDO info error
  *
- * @param[in]  context    context结构体
- * @param[in]  Slave      从站号
- * @param[in]  Index      索引号
- * @param[in]  SubIdx     子索引
- * @param[in]  AbortCode  错误代码参详EtherCAT手册
+ * @param[in]  context    = context struct
+ * @param[in]  Slave      = Slave number
+ * @param[in]  Index      = Index that generated error
+ * @param[in]  SubIdx     = Subindex that generated error
+ * @param[in]  AbortCode  = Abortcode, see EtherCAT documentation for list
  */
-static void Nexx__SDOinfoerror(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 SubIdx, int32 AbortCode)
+static void nexx_SDOinfoerror(nexx_contextt *context, uint16 Slave, uint16 Index, uint8 SubIdx, int32 AbortCode)
 {
-   Nex_errort Ec;
+   nex_errort Ec;
 
    memset(&Ec, 0, sizeof(Ec));
    Ec.Slave = Slave;
    Ec.Index = Index;
    Ec.SubIdx = SubIdx;
    *(context->ecaterror) = TRUE;
-   Ec.Etype = Nex_ERR_TYPE_SDOINFO_ERROR;
+   Ec.Etype = NEX_ERR_TYPE_SDOINFO_ERROR;
    Ec.AbortCode = AbortCode;
-   Nexx__pusherror(context, &Ec);
+   nexx_pusherror(context, &Ec);
 }
 
-/** CoE SDO读取， 单个子索引或完全访问。
+/** CoE SDO read, blocking. Single subindex or Complete Access.
  *
- *仅发出“正常”上传请求。 如果请求的参数 <= 4bytes
- *然后返回“加急”响应，否则返回“正常”响应。 如果是“正常”
- *响应大于邮箱大小，然后响应被分段。 
- *功能将组合所有段并将它们复制到参数缓冲区。
+ * Only a "normal" upload request is issued. If the requested parameter is <= 4bytes
+ * then a "expedited" response is returned, otherwise a "normal" response. If a "normal"
+ * response is larger than the mailbox size then the response is segmented. The function
+ * will combine all segments and copy them to the parameter buffer.
  *
- * @param[in]  context    context结构体
- * @param[in]  slave      从站号码
- * @param[in]  index      索引号
- * @param[in]  subindex   子索引, 如果CA被使用则必须为0或者1
- * @param[in]  CA         FALSE 单个子索引. TRUE 完全访问,所有的子索引都被读
- * @param[in,out] psize   以字节为单位的缓冲区大小 返回从SDO读取的字节数
- * @param[out] p          指向参数缓冲区的指针
- * @param[in]  timeout    溢出时间 Nex_TIMEOUTRXM us
- * @return 最后一个从站的WKC
+ * @param[in]  context    = context struct
+ * @param[in]  slave      = Slave number
+ * @param[in]  index      = Index to read
+ * @param[in]  subindex   = Subindex to read, must be 0 or 1 if CA is used.
+ * @param[in]  CA         = FALSE = single subindex. TRUE = Complete Access, all subindexes read.
+ * @param[in,out] psize   = Size in bytes of parameter buffer, returns bytes read from SDO.
+ * @param[out] p          = Pointer to parameter buffer
+ * @param[in]  timeout    = Timeout in us, standard is NEX_TIMEOUTRXM
+ * @return Workcounter from last slave response
  */
-int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 subindex,
+int nexx_SDOread(nexx_contextt *context, uint16 slave, uint16 index, uint8 subindex,
                boolean CA, int *psize, void *p, int timeout)
 {
-   Nex_SDOt *SDOp, *aSDOp;
+   nex_SDOt *SDOp, *aSDOp;
    uint16 bytesize, Framedatasize;
    int wkc;
    int32 SDOlen;
    uint8 *bp;
    uint8 *hp;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_mbxbuft MbxIn, MbxOut;
    uint8 cnt, toggle;
    boolean NotLast;
 
-   Nex_clearmbx(&MbxIn);
-   /* 如果从站输出邮箱有东西存在，则清空*/
-   wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   aSDOp = (Nex_SDOt *)&MbxIn;
-   SDOp = (Nex_SDOt *)&MbxOut;
-   SDOp->MbxHeader.length = htoes(0x000a);//跟随的邮箱服务数据的长度
-   SDOp->MbxHeader.address = htoes(0x0000);//发送方的站地地址
-   SDOp->MbxHeader.priority = 0x00;//优先级
-   //得到邮箱计数值
-   cnt = Nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
-   context->slavelist[slave].mbx_cnt = cnt;//序列号
-   SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); //邮箱类型+序列号
-   SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOREQ << 12)); //number 9bit + Res 3bit + Type 4bit
+   nex_clearmbx(&MbxIn);
+   /* Empty slave out mailbox if something is in. Timout set to 0 */
+   wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   aSDOp = (nex_SDOt *)&MbxIn;
+   SDOp = (nex_SDOt *)&MbxOut;
+   SDOp->MbxHeader.length = htoes(0x000a);
+   SDOp->MbxHeader.address = htoes(0x0000);
+   SDOp->MbxHeader.priority = 0x00;
+   /* get new mailbox count value, used as session handle */
+   cnt = nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
+   context->slavelist[slave].mbx_cnt = cnt;
+   SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
+   SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOREQ << 12)); /* number 9bits service upper 4 bits (SDO request) */
    if (CA)
    {
-      SDOp->Command = ECT_SDO_UP_REQ_CA; /* 操作完整的数据对象 上传请求 */
+      SDOp->Command = ECT_SDO_UP_REQ_CA; /* upload request complete access */
    }
    else
    {
-      SDOp->Command = ECT_SDO_UP_REQ; /* 常规上传请求 */
+      SDOp->Command = ECT_SDO_UP_REQ; /* upload request normal */
    }
    SDOp->Index = htoes(index);
    if (CA && (subindex > 1))
@@ -153,15 +159,15 @@ int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 sub
    }
    SDOp->SubIndex = subindex;
    SDOp->ldata[0] = 0;
-   /* 将COE请求发送给从站 */
-   wkc = Nexx__mbxsend(context, slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
-   if (wkc > 0) //建立邮箱通讯？
+   /* send CoE request to slave */
+   wkc = nexx_mbxsend(context, slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
+   if (wkc > 0) /* succeeded to place mailbox in slave ? */
    {
-      /* 清零缓冲区 */
-      Nex_clearmbx(&MbxIn);
-      /*通过邮箱读取从站数据 */
-      wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, timeout);
-      if (wkc > 0) //成功回应
+      /* clean mailboxbuffer */
+      nex_clearmbx(&MbxIn);
+      /* read slave response */
+      wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, timeout);
+      if (wkc > 0) /* succeeded to read slave response ? */
       {
          /* slave response should be CoE, SDO response and the correct index */
          if (((aSDOp->MbxHeader.mbxtype & 0x0f) == ECT_MBXT_COE) &&
@@ -182,7 +188,7 @@ int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 sub
                else
                {
                   wkc = 0;
-                  Nexx__packeterror(context, slave, index, subindex, 3); /*  data container too small for type */
+                  nexx_packeterror(context, slave, index, subindex, 3); /*  data container too small for type */
                }
             }
             else
@@ -206,11 +212,11 @@ int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 sub
                      toggle= 0x00;
                      while (NotLast) /* segmented transfer */
                      {
-                        SDOp = (Nex_SDOt *)&MbxOut;
+                        SDOp = (nex_SDOt *)&MbxOut;
                         SDOp->MbxHeader.length = htoes(0x000a);
                         SDOp->MbxHeader.address = htoes(0x0000);
                         SDOp->MbxHeader.priority = 0x00;
-                        cnt = Nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
+                        cnt = nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
                         context->slavelist[slave].mbx_cnt = cnt;
                         SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
                         SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOREQ << 12)); /* number 9bits service upper 4 bits (SDO request) */
@@ -219,13 +225,13 @@ int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 sub
                         SDOp->SubIndex = subindex;
                         SDOp->ldata[0] = 0;
                         /* send segmented upload request to slave */
-                        wkc = Nexx__mbxsend(context, slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+                        wkc = nexx_mbxsend(context, slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
                         /* is mailbox transfered to slave ? */
                         if (wkc > 0)
                         {
-                           Nex_clearmbx(&MbxIn);
+                           nex_clearmbx(&MbxIn);
                            /* read slave response */
-                           wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, timeout);
+                           wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, timeout);
                            /* has slave responded ? */
                            if (wkc > 0)
                            {
@@ -260,9 +266,9 @@ int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 sub
                               {
                                  NotLast = FALSE;
                                  if ((aSDOp->Command) == ECT_SDO_ABORT) /* SDO abort frame received */
-                                    Nexx__SDOerror(context, slave, index, subindex, etohl(aSDOp->ldata[0]));
+                                    nexx_SDOerror(context, slave, index, subindex, etohl(aSDOp->ldata[0]));
                                  else
-                                    Nexx__packeterror(context, slave, index, subindex, 1); /* Unexpected frame returned */
+                                    nexx_packeterror(context, slave, index, subindex, 1); /* Unexpected frame returned */
                                  wkc = 0;
                               }
                            }
@@ -282,7 +288,7 @@ int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 sub
                else
                {
                   wkc = 0;
-                  Nexx__packeterror(context, slave, index, subindex, 3); /*  data container too small for type */
+                  nexx_packeterror(context, slave, index, subindex, 3); /*  data container too small for type */
                }
             }
          }
@@ -291,11 +297,11 @@ int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 sub
          {
             if ((aSDOp->Command) == ECT_SDO_ABORT) /* SDO abort frame received */
             {
-               Nexx__SDOerror(context, slave, index, subindex, etohl(aSDOp->ldata[0]));
+               nexx_SDOerror(context, slave, index, subindex, etohl(aSDOp->ldata[0]));
             }
             else
             {
-               Nexx__packeterror(context, slave, index, subindex, 1); /* Unexpected frame returned */
+               nexx_packeterror(context, slave, index, subindex, 1); /* Unexpected frame returned */
             }
             wkc = 0;
          }
@@ -318,26 +324,26 @@ int Nexx__SDOread(Nexx__contextt *context, uint16 slave, uint16 index, uint8 sub
  * @param[in]  CA         = FALSE = single subindex. TRUE = Complete Access, all subindexes written.
  * @param[in]  psize      = Size in bytes of parameter buffer.
  * @param[out] p          = Pointer to parameter buffer
- * @param[in]  Timeout    = Timeout in us, standard is Nex_TIMEOUTRXM
+ * @param[in]  Timeout    = Timeout in us, standard is NEX_TIMEOUTRXM
  * @return Workcounter from last slave response
  */
-int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 SubIndex,
+int nexx_SDOwrite(nexx_contextt *context, uint16 Slave, uint16 Index, uint8 SubIndex,
                 boolean CA, int psize, void *p, int Timeout)
 {
-   Nex_SDOt *SDOp, *aSDOp;
+   nex_SDOt *SDOp, *aSDOp;
    int wkc, maxdata;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_mbxbuft MbxIn, MbxOut;
    uint8 cnt, toggle;
    uint16 framedatasize;
    boolean  NotLast;
    uint8 *hp;
 
-   Nex_clearmbx(&MbxIn);
+   nex_clearmbx(&MbxIn);
    /* Empty slave out mailbox if something is in. Timout set to 0 */
-   wkc = Nexx__mbxreceive(context, Slave, (Nex_mbxbuft *)&MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   aSDOp = (Nex_SDOt *)&MbxIn;
-   SDOp = (Nex_SDOt *)&MbxOut;
+   wkc = nexx_mbxreceive(context, Slave, (nex_mbxbuft *)&MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   aSDOp = (nex_SDOt *)&MbxIn;
+   SDOp = (nex_SDOt *)&MbxOut;
    maxdata = context->slavelist[Slave].mbx_l - 0x10; /* data section=mailbox size - 6 mbx - 2 CoE - 8 sdo req */
    /* if small data use expedited transfer */
    if ((psize <= 4) && !CA)
@@ -346,7 +352,7 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
       SDOp->MbxHeader.address = htoes(0x0000);
       SDOp->MbxHeader.priority = 0x00;
       /* get new mailbox counter, used for session handle */
-      cnt = Nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
+      cnt = nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
       context->slavelist[Slave].mbx_cnt = cnt;
       SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
       SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOREQ << 12)); /* number 9bits service upper 4 bits */
@@ -357,12 +363,12 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
       /* copy parameter data to mailbox */
       memcpy(&SDOp->ldata[0], hp, psize);
       /* send mailbox SDO download request to slave */
-      wkc = Nexx__mbxsend(context, Slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+      wkc = nexx_mbxsend(context, Slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
       if (wkc > 0)
       {
-         Nex_clearmbx(&MbxIn);
+         nex_clearmbx(&MbxIn);
          /* read slave response */
-         wkc = Nexx__mbxreceive(context, Slave, (Nex_mbxbuft *)&MbxIn, Timeout);
+         wkc = nexx_mbxreceive(context, Slave, (nex_mbxbuft *)&MbxIn, Timeout);
          if (wkc > 0)
          {
             /* response should be CoE, SDO response, correct index and subindex */
@@ -378,11 +384,11 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
             {
                if (aSDOp->Command == ECT_SDO_ABORT) /* SDO abort frame received */
                {
-                  Nexx__SDOerror(context, Slave, Index, SubIndex, etohl(aSDOp->ldata[0]));
+                  nexx_SDOerror(context, Slave, Index, SubIndex, etohl(aSDOp->ldata[0]));
                }
                else
                {
-                  Nexx__packeterror(context, Slave, Index, SubIndex, 1); /* Unexpected frame returned */
+                  nexx_packeterror(context, Slave, Index, SubIndex, 1); /* Unexpected frame returned */
                }
                wkc = 0;
             }
@@ -402,7 +408,7 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
       SDOp->MbxHeader.address = htoes(0x0000);
       SDOp->MbxHeader.priority = 0x00;
       /* get new mailbox counter, used for session handle */
-      cnt = Nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
+      cnt = nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
       context->slavelist[Slave].mbx_cnt = cnt;
       SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
       SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOREQ << 12)); /* number 9bits service upper 4 bits */
@@ -427,12 +433,12 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
       hp += framedatasize;
       psize -= framedatasize;
       /* send mailbox SDO download request to slave */
-      wkc = Nexx__mbxsend(context, Slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+      wkc = nexx_mbxsend(context, Slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
       if (wkc > 0)
       {
-         Nex_clearmbx(&MbxIn);
+         nex_clearmbx(&MbxIn);
          /* read slave response */
-         wkc = Nexx__mbxreceive(context, Slave, (Nex_mbxbuft *)&MbxIn, Timeout);
+         wkc = nexx_mbxreceive(context, Slave, (nex_mbxbuft *)&MbxIn, Timeout);
          if (wkc > 0)
          {
             /* response should be CoE, SDO response, correct index and subindex */
@@ -447,7 +453,7 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
                /* repeat while segments left */
                while (NotLast)
                {
-                  SDOp = (Nex_SDOt *)&MbxOut;
+                  SDOp = (nex_SDOt *)&MbxOut;
                   framedatasize = psize;
                   NotLast = FALSE;
                   SDOp->Command = 0x01; /* last segment */
@@ -469,7 +475,7 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
                   SDOp->MbxHeader.address = htoes(0x0000);
                   SDOp->MbxHeader.priority = 0x00;
                   /* get new mailbox counter value */
-                  cnt = Nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
+                  cnt = nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
                   context->slavelist[Slave].mbx_cnt = cnt;
                   SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
                   SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOREQ << 12)); /* number 9bits service upper 4 bits (SDO request) */
@@ -480,12 +486,12 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
                   hp += framedatasize;
                   psize -= framedatasize;
                   /* send SDO download request */
-                  wkc = Nexx__mbxsend(context, Slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+                  wkc = nexx_mbxsend(context, Slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
                   if (wkc > 0)
                   {
-                     Nex_clearmbx(&MbxIn);
+                     nex_clearmbx(&MbxIn);
                      /* read slave response */
-                     wkc = Nexx__mbxreceive(context, Slave, (Nex_mbxbuft *)&MbxIn, Timeout);
+                     wkc = nexx_mbxreceive(context, Slave, (nex_mbxbuft *)&MbxIn, Timeout);
                      if (wkc > 0)
                      {
                         if (((aSDOp->MbxHeader.mbxtype & 0x0f) == ECT_MBXT_COE) &&
@@ -498,11 +504,11 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
                         {
                            if (aSDOp->Command == ECT_SDO_ABORT) /* SDO abort frame received */
                            {
-                              Nexx__SDOerror(context, Slave, Index, SubIndex, etohl(aSDOp->ldata[0]));
+                              nexx_SDOerror(context, Slave, Index, SubIndex, etohl(aSDOp->ldata[0]));
                            }
                            else
                            {
-                              Nexx__packeterror(context, Slave, Index, SubIndex, 1); /* Unexpected frame returned */
+                              nexx_packeterror(context, Slave, Index, SubIndex, 1); /* Unexpected frame returned */
                            }
                            wkc = 0;
                            NotLast = FALSE;
@@ -517,11 +523,11 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
             {
                if (aSDOp->Command == ECT_SDO_ABORT) /* SDO abort frame received */
                {
-                  Nexx__SDOerror(context, Slave, Index, SubIndex, etohl(aSDOp->ldata[0]));
+                  nexx_SDOerror(context, Slave, Index, SubIndex, etohl(aSDOp->ldata[0]));
                }
                else
                {
-                  Nexx__packeterror(context, Slave, Index, SubIndex, 1); /* Unexpected frame returned */
+                  nexx_packeterror(context, Slave, Index, SubIndex, 1); /* Unexpected frame returned */
                }
                wkc = 0;
             }
@@ -543,19 +549,19 @@ int Nexx__SDOwrite(Nexx__contextt *context, uint16 Slave, uint16 Index, uint8 Su
  * @param[out] p             = Pointer to PDO buffer
  * @return Workcounter from last slave response
  */
-int Nexx__RxPDO(Nexx__contextt *context, uint16 Slave, uint16 RxPDOnumber, int psize, void *p)
+int nexx_RxPDO(nexx_contextt *context, uint16 Slave, uint16 RxPDOnumber, int psize, void *p)
 {
-   Nex_SDOt *SDOp;
+   nex_SDOt *SDOp;
    int wkc, maxdata;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_mbxbuft MbxIn, MbxOut;
    uint8 cnt;
    uint16 framedatasize;
 
-   Nex_clearmbx(&MbxIn);
+   nex_clearmbx(&MbxIn);
    /* Empty slave out mailbox if something is in. Timout set to 0 */
-   wkc = Nexx__mbxreceive(context, Slave, (Nex_mbxbuft *)&MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   SDOp = (Nex_SDOt *)&MbxOut;
+   wkc = nexx_mbxreceive(context, Slave, (nex_mbxbuft *)&MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   SDOp = (nex_SDOt *)&MbxOut;
    maxdata = context->slavelist[Slave].mbx_l - 0x08; /* data section=mailbox size - 6 mbx - 2 CoE */
    framedatasize = psize;
    if (framedatasize > maxdata)
@@ -566,14 +572,14 @@ int Nexx__RxPDO(Nexx__contextt *context, uint16 Slave, uint16 RxPDOnumber, int p
    SDOp->MbxHeader.address = htoes(0x0000);
    SDOp->MbxHeader.priority = 0x00;
    /* get new mailbox counter, used for session handle */
-   cnt = Nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
+   cnt = nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
    context->slavelist[Slave].mbx_cnt = cnt;
    SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
    SDOp->CANOpen = htoes((RxPDOnumber & 0x01ff) + (ECT_COES_RXPDO << 12)); /* number 9bits service upper 4 bits */
    /* copy PDO data to mailbox */
    memcpy(&SDOp->Command, p, framedatasize);
    /* send mailbox RxPDO request to slave */
-   wkc = Nexx__mbxsend(context, Slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+   wkc = nexx_mbxsend(context, Slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
 
    return wkc;
 }
@@ -587,38 +593,38 @@ int Nexx__RxPDO(Nexx__contextt *context, uint16 Slave, uint16 RxPDOnumber, int p
  * @param[in]  TxPDOnumber   = Related TxPDO number
  * @param[in,out] psize      = Size in bytes of PDO buffer, returns bytes read from PDO.
  * @param[out] p             = Pointer to PDO buffer
- * @param[in]  timeout       = Timeout in us, standard is Nex_TIMEOUTRXM
+ * @param[in]  timeout       = Timeout in us, standard is NEX_TIMEOUTRXM
  * @return Workcounter from last slave response
  */
-int Nexx__TxPDO(Nexx__contextt *context, uint16 slave, uint16 TxPDOnumber , int *psize, void *p, int timeout)
+int nexx_TxPDO(nexx_contextt *context, uint16 slave, uint16 TxPDOnumber , int *psize, void *p, int timeout)
 {
-   Nex_SDOt *SDOp, *aSDOp;
+   nex_SDOt *SDOp, *aSDOp;
    int wkc;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_mbxbuft MbxIn, MbxOut;
    uint8 cnt;
    uint16 framedatasize;
 
-   Nex_clearmbx(&MbxIn);
+   nex_clearmbx(&MbxIn);
    /* Empty slave out mailbox if something is in. Timout set to 0 */
-   wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   aSDOp = (Nex_SDOt *)&MbxIn;
-   SDOp = (Nex_SDOt *)&MbxOut;
+   wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   aSDOp = (nex_SDOt *)&MbxIn;
+   SDOp = (nex_SDOt *)&MbxOut;
    SDOp->MbxHeader.length = htoes(0x02);
    SDOp->MbxHeader.address = htoes(0x0000);
    SDOp->MbxHeader.priority = 0x00;
    /* get new mailbox counter, used for session handle */
-   cnt = Nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
+   cnt = nex_nextmbxcnt(context->slavelist[slave].mbx_cnt);
    context->slavelist[slave].mbx_cnt = cnt;
    SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
    SDOp->CANOpen = htoes((TxPDOnumber & 0x01ff) + (ECT_COES_TXPDO_RR << 12)); /* number 9bits service upper 4 bits */
-   wkc = Nexx__mbxsend(context, slave, (Nex_mbxbuft *)&MbxOut, Nex_TIMEOUTTXM);
+   wkc = nexx_mbxsend(context, slave, (nex_mbxbuft *)&MbxOut, NEX_TIMEOUTTXM);
    if (wkc > 0)
    {
       /* clean mailboxbuffer */
-      Nex_clearmbx(&MbxIn);
+      nex_clearmbx(&MbxIn);
       /* read slave response */
-      wkc = Nexx__mbxreceive(context, slave, (Nex_mbxbuft *)&MbxIn, timeout);
+      wkc = nexx_mbxreceive(context, slave, (nex_mbxbuft *)&MbxIn, timeout);
       if (wkc > 0) /* succeeded to read slave response ? */
       {
          /* slave response should be CoE, TxPDO */
@@ -638,7 +644,7 @@ int Nexx__TxPDO(Nexx__contextt *context, uint16 slave, uint16 TxPDOnumber , int 
             else
             {
                wkc = 0;
-               Nexx__packeterror(context, slave, 0, 0, 3); /*  data container too small for type */
+               nexx_packeterror(context, slave, 0, 0, 3); /*  data container too small for type */
             }
          }
          /* other slave response */
@@ -646,11 +652,11 @@ int Nexx__TxPDO(Nexx__contextt *context, uint16 slave, uint16 TxPDOnumber , int 
          {
             if ((aSDOp->Command) == ECT_SDO_ABORT) /* SDO abort frame received */
             {
-               Nexx__SDOerror(context, slave, 0, 0, etohl(aSDOp->ldata[0]));
+               nexx_SDOerror(context, slave, 0, 0, etohl(aSDOp->ldata[0]));
             }
             else
             {
-               Nexx__packeterror(context, slave, 0, 0, 1); /* Unexpected frame returned */
+               nexx_packeterror(context, slave, 0, 0, 1); /* Unexpected frame returned */
             }
             wkc = 0;
          }
@@ -666,7 +672,7 @@ int Nexx__TxPDO(Nexx__contextt *context, uint16 slave, uint16 TxPDOnumber , int 
  * @param[in]  PDOassign     = PDO assign object
  * @return total bitlength of PDO assign
  */
-int Nexx__readPDOassign(Nexx__contextt *context, uint16 Slave, uint16 PDOassign)
+int nexx_readPDOassign(nexx_contextt *context, uint16 Slave, uint16 PDOassign)
 {
    uint16 idxloop, nidx, subidxloop, rdat, idx, subidx;
    uint8 subcnt;
@@ -675,7 +681,7 @@ int Nexx__readPDOassign(Nexx__contextt *context, uint16 Slave, uint16 PDOassign)
 
    rdl = sizeof(rdat); rdat = 0;
    /* read PDO assign subindex 0 ( = number of PDO's) */
-   wkc = Nexx__SDOread(context, Slave, PDOassign, 0x00, FALSE, &rdl, &rdat, Nex_TIMEOUTRXM);
+   wkc = nexx_SDOread(context, Slave, PDOassign, 0x00, FALSE, &rdl, &rdat, NEX_TIMEOUTRXM);
    rdat = etohs(rdat);
    /* positive result from slave ? */
    if ((wkc > 0) && (rdat > 0))
@@ -688,21 +694,21 @@ int Nexx__readPDOassign(Nexx__contextt *context, uint16 Slave, uint16 PDOassign)
       {
          rdl = sizeof(rdat); rdat = 0;
          /* read PDO assign */
-         wkc = Nexx__SDOread(context, Slave, PDOassign, (uint8)idxloop, FALSE, &rdl, &rdat, Nex_TIMEOUTRXM);
+         wkc = nexx_SDOread(context, Slave, PDOassign, (uint8)idxloop, FALSE, &rdl, &rdat, NEX_TIMEOUTRXM);
          /* result is index of PDO */
          idx = etohl(rdat);
          if (idx > 0)
          {
             rdl = sizeof(subcnt); subcnt = 0;
             /* read number of subindexes of PDO */
-            wkc = Nexx__SDOread(context, Slave,idx, 0x00, FALSE, &rdl, &subcnt, Nex_TIMEOUTRXM);
+            wkc = nexx_SDOread(context, Slave,idx, 0x00, FALSE, &rdl, &subcnt, NEX_TIMEOUTRXM);
             subidx = subcnt;
             /* for each subindex */
             for (subidxloop = 1; subidxloop <= subidx; subidxloop++)
             {
                rdl = sizeof(rdat2); rdat2 = 0;
                /* read SDO that is mapped in PDO */
-               wkc = Nexx__SDOread(context, Slave, idx, (uint8)subidxloop, FALSE, &rdl, &rdat2, Nex_TIMEOUTRXM);
+               wkc = nexx_SDOread(context, Slave, idx, (uint8)subidxloop, FALSE, &rdl, &rdat2, NEX_TIMEOUTRXM);
                rdat2 = etohl(rdat2);
                /* extract bitlength of SDO */
                if (LO_BYTE(rdat2) < 0xff)
@@ -713,7 +719,7 @@ int Nexx__readPDOassign(Nexx__contextt *context, uint16 Slave, uint16 PDOassign)
                {
                   rdl = sizeof(rdat); rdat = htoes(0xff);
                   /* read Object Entry in Object database */
-//                  wkc = Nex_readOEsingle(idx, (uint8)SubCount, pODlist, pOElist);
+//                  wkc = nex_readOEsingle(idx, (uint8)SubCount, pODlist, pOElist);
                   bsize += etohs(rdat);
                }
             }
@@ -731,18 +737,18 @@ int Nexx__readPDOassign(Nexx__contextt *context, uint16 Slave, uint16 PDOassign)
  * @param[in]  PDOassign     = PDO assign object
  * @return total bitlength of PDO assign
  */
-int Nexx__readPDOassignCA(Nexx__contextt *context, uint16 Slave, int Thread_n,
+int nexx_readPDOassignCA(nexx_contextt *context, uint16 Slave, int Thread_n,
       uint16 PDOassign)
 {
    uint16 idxloop, nidx, subidxloop, idx, subidx;
    int wkc, bsize = 0, rdl;
 
    /* find maximum size of PDOassign buffer */
-   rdl = sizeof(Nex_PDOassignt);
+   rdl = sizeof(nex_PDOassignt);
    context->PDOassign[Thread_n].n=0;
    /* read rxPDOassign in CA mode, all subindexes are read in one struct */
-   wkc = Nexx__SDOread(context, Slave, PDOassign, 0x00, TRUE, &rdl,
-         &(context->PDOassign[Thread_n]), Nex_TIMEOUTRXM);
+   wkc = nexx_SDOread(context, Slave, PDOassign, 0x00, TRUE, &rdl,
+         &(context->PDOassign[Thread_n]), NEX_TIMEOUTRXM);
    /* positive result from slave ? */
    if ((wkc > 0) && (context->PDOassign[Thread_n].n > 0))
    {
@@ -755,10 +761,10 @@ int Nexx__readPDOassignCA(Nexx__contextt *context, uint16 Slave, int Thread_n,
          idx = etohs(context->PDOassign[Thread_n].index[idxloop - 1]);
          if (idx > 0)
          {
-            rdl = sizeof(Nex_PDOdesct); context->PDOdesc[Thread_n].n = 0;
+            rdl = sizeof(nex_PDOdesct); context->PDOdesc[Thread_n].n = 0;
             /* read SDO's that are mapped in PDO, CA mode */
-            wkc = Nexx__SDOread(context, Slave,idx, 0x00, TRUE, &rdl,
-                  &(context->PDOdesc[Thread_n]), Nex_TIMEOUTRXM);
+            wkc = nexx_SDOread(context, Slave,idx, 0x00, TRUE, &rdl,
+                  &(context->PDOdesc[Thread_n]), NEX_TIMEOUTRXM);
             subidx = context->PDOdesc[Thread_n].n;
             /* extract all bitlengths of SDO's */
             for (subidxloop = 1; subidxloop <= subidx; subidxloop++)
@@ -801,7 +807,7 @@ int Nexx__readPDOassignCA(Nexx__contextt *context, uint16 Slave, int Thread_n,
  * @param[out] Isize   = Size in bits of input mapping (txPDO) found
  * @return >0 if mapping succesful.
  */
-int Nexx__readPDOmap(Nexx__contextt *context, uint16 Slave, int *Osize, int *Isize)
+int nexx_readPDOmap(nexx_contextt *context, uint16 Slave, int *Osize, int *Isize)
 {
    int wkc, rdl;
    int retVal = 0;
@@ -814,19 +820,19 @@ int Nexx__readPDOmap(Nexx__contextt *context, uint16 Slave, int *Osize, int *Isi
    SMt_bug_add = 0;
    rdl = sizeof(nSM); nSM = 0;
    /* read SyncManager Communication Type object count */
-   wkc = Nexx__SDOread(context, Slave, ECT_SDO_SMCOMMTYPE, 0x00, FALSE, &rdl, &nSM, Nex_TIMEOUTRXM);
+   wkc = nexx_SDOread(context, Slave, ECT_SDO_SMCOMMTYPE, 0x00, FALSE, &rdl, &nSM, NEX_TIMEOUTRXM);
    /* positive result from slave ? */
    if ((wkc > 0) && (nSM > 2))
    {
       /* limit to maximum number of SM defined, if true the slave can't be configured */
-      if (nSM > Nex_MAXSM)
-         nSM = Nex_MAXSM;
+      if (nSM > NEX_MAXSM)
+         nSM = NEX_MAXSM;
       /* iterate for every SM type defined */
       for (iSM = 2 ; iSM < nSM ; iSM++)
       {
          rdl = sizeof(tSM); tSM = 0;
          /* read SyncManager Communication Type */
-         wkc = Nexx__SDOread(context, Slave, ECT_SDO_SMCOMMTYPE, iSM + 1, FALSE, &rdl, &tSM, Nex_TIMEOUTRXM);
+         wkc = nexx_SDOread(context, Slave, ECT_SDO_SMCOMMTYPE, iSM + 1, FALSE, &rdl, &tSM, NEX_TIMEOUTRXM);
          if (wkc > 0)
          {
 // start slave bug prevention code, remove if possible
@@ -853,12 +859,12 @@ int Nexx__readPDOmap(Nexx__contextt *context, uint16 Slave, int *Osize, int *Isi
             if (tSM == 0)
             {
                context->slavelist[Slave].SM[iSM].SMflags =
-                  htoel( etohl(context->slavelist[Slave].SM[iSM].SMflags) & Nex_SMENABLEMASK);
+                  htoel( etohl(context->slavelist[Slave].SM[iSM].SMflags) & NEX_SMENABLEMASK);
             }
             if ((tSM == 3) || (tSM == 4))
             {
                /* read the assign PDO */
-               Tsize = Nexx__readPDOassign(context, Slave, ECT_SDO_PDOASSIGN + iSM );
+               Tsize = nexx_readPDOassign(context, Slave, ECT_SDO_PDOASSIGN + iSM );
                /* if a mapping is found */
                if (Tsize)
                {
@@ -892,7 +898,7 @@ int Nexx__readPDOmap(Nexx__contextt *context, uint16 Slave, int *Osize, int *Isi
  *
  * CANopen has standard indexes defined for PDO mapping. This function
  * tries to read them and collect a full input and output mapping size
- * of designated slave. Slave has to support CA, otherwise use Nex_readPDOmap().
+ * of designated slave. Slave has to support CA, otherwise use nex_readPDOmap().
  *
  * @param[in]  context  = context struct
  * @param[in]  Slave    = Slave number
@@ -901,7 +907,7 @@ int Nexx__readPDOmap(Nexx__contextt *context, uint16 Slave, int *Osize, int *Isi
  * @param[out] Isize    = Size in bits of input mapping (txPDO) found
  * @return >0 if mapping succesful.
  */
-int Nexx__readPDOmapCA(Nexx__contextt *context, uint16 Slave, int Thread_n, int *Osize, int *Isize)
+int nexx_readPDOmapCA(nexx_contextt *context, uint16 Slave, int Thread_n, int *Osize, int *Isize)
 {
    int wkc, rdl;
    int retVal = 0;
@@ -912,20 +918,20 @@ int Nexx__readPDOmapCA(Nexx__contextt *context, uint16 Slave, int Thread_n, int 
    *Isize = 0;
    *Osize = 0;
    SMt_bug_add = 0;
-   rdl = sizeof(Nex_SMcommtypet);
+   rdl = sizeof(nex_SMcommtypet);
    context->SMcommtype[Thread_n].n = 0;
    /* read SyncManager Communication Type object count Complete Access*/
-   wkc = Nexx__SDOread(context, Slave, ECT_SDO_SMCOMMTYPE, 0x00, TRUE, &rdl,
-         &(context->SMcommtype[Thread_n]), Nex_TIMEOUTRXM);
+   wkc = nexx_SDOread(context, Slave, ECT_SDO_SMCOMMTYPE, 0x00, TRUE, &rdl,
+         &(context->SMcommtype[Thread_n]), NEX_TIMEOUTRXM);
    /* positive result from slave ? */
    if ((wkc > 0) && (context->SMcommtype[Thread_n].n > 2))
    {
       nSM = context->SMcommtype[Thread_n].n;
       /* limit to maximum number of SM defined, if true the slave can't be configured */
-      if (nSM > Nex_MAXSM)
+      if (nSM > NEX_MAXSM)
       {
-         nSM = Nex_MAXSM;
-         Nexx__packeterror(context, Slave, 0, 0, 10); /* #SM larger than Nex_MAXSM */
+         nSM = NEX_MAXSM;
+         nexx_packeterror(context, Slave, 0, 0, 10); /* #SM larger than NEX_MAXSM */
       }
       /* iterate for every SM type defined */
       for (iSM = 2 ; iSM < nSM ; iSM++)
@@ -948,12 +954,12 @@ int Nexx__readPDOmapCA(Nexx__contextt *context, uint16 Slave, int Thread_n, int 
          if (tSM == 0)
          {
             context->slavelist[Slave].SM[iSM].SMflags =
-               htoel( etohl(context->slavelist[Slave].SM[iSM].SMflags) & Nex_SMENABLEMASK);
+               htoel( etohl(context->slavelist[Slave].SM[iSM].SMflags) & NEX_SMENABLEMASK);
          }
          if ((tSM == 3) || (tSM == 4))
          {
             /* read the assign PDO */
-            Tsize = Nexx__readPDOassignCA(context, Slave, Thread_n,
+            Tsize = nexx_readPDOassignCA(context, Slave, Thread_n,
                   ECT_SDO_PDOASSIGN + iSM );
             /* if a mapping is found */
             if (Tsize)
@@ -989,10 +995,10 @@ int Nexx__readPDOmapCA(Nexx__contextt *context, uint16 Slave, int Thread_n, int 
  * @param[out] pODlist  = resulting Object Description list.
  * @return Workcounter of slave response.
  */
-int Nexx__readODlist(Nexx__contextt *context, uint16 Slave, Nex_ODlistt *pODlist)
+int nexx_readODlist(nexx_contextt *context, uint16 Slave, nex_ODlistt *pODlist)
 {
-   Nex_SDOservicet *SDOp, *aSDOp;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_SDOservicet *SDOp, *aSDOp;
+   nex_mbxbuft MbxIn, MbxOut;
    int wkc;
    uint16 x, n, i, sp, offset;
    boolean stop;
@@ -1001,17 +1007,17 @@ int Nexx__readODlist(Nexx__contextt *context, uint16 Slave, Nex_ODlistt *pODlist
 
    pODlist->Slave = Slave;
    pODlist->Entries = 0;
-   Nex_clearmbx(&MbxIn);
+   nex_clearmbx(&MbxIn);
    /* clear pending out mailbox in slave if available. Timeout is set to 0 */
-   wkc = Nexx__mbxreceive(context, Slave, &MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   aSDOp = (Nex_SDOservicet*)&MbxIn;
-   SDOp = (Nex_SDOservicet*)&MbxOut;
+   wkc = nexx_mbxreceive(context, Slave, &MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   aSDOp = (nex_SDOservicet*)&MbxIn;
+   SDOp = (nex_SDOservicet*)&MbxOut;
    SDOp->MbxHeader.length = htoes(0x0008);
    SDOp->MbxHeader.address = htoes(0x0000);
    SDOp->MbxHeader.priority = 0x00;
    /* Get new mailbox counter value */
-   cnt = Nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
+   cnt = nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
    context->slavelist[Slave].mbx_cnt = cnt;
    SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
    SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOINFO << 12)); /* number 9bits service upper 4 bits */
@@ -1020,7 +1026,7 @@ int Nexx__readODlist(Nexx__contextt *context, uint16 Slave, Nex_ODlistt *pODlist
    SDOp->Fragments = 0; /* fragments left */
    SDOp->wdata[0] = htoes(0x01); /* all objects */
    /* send get object description list request to slave */
-   wkc = Nexx__mbxsend(context, Slave, &MbxOut, Nex_TIMEOUTTXM);
+   wkc = nexx_mbxsend(context, Slave, &MbxOut, NEX_TIMEOUTTXM);
    /* mailbox placed in slave ? */
    if (wkc > 0)
    {
@@ -1031,9 +1037,9 @@ int Nexx__readODlist(Nexx__contextt *context, uint16 Slave, Nex_ODlistt *pODlist
       do
       {
          stop = TRUE; /* assume this is last iteration */
-         Nex_clearmbx(&MbxIn);
+         nex_clearmbx(&MbxIn);
          /* read slave response */
-         wkc = Nexx__mbxreceive(context, Slave, &MbxIn, Nex_TIMEOUTRXM);
+         wkc = nexx_mbxreceive(context, Slave, &MbxIn, NEX_TIMEOUTRXM);
          /* got response ? */
          if (wkc > 0)
          {
@@ -1052,16 +1058,16 @@ int Nexx__readODlist(Nexx__contextt *context, uint16 Slave, Nex_ODlistt *pODlist
                   n = (etohs(aSDOp->MbxHeader.length) - 6) / 2;
                }
                /* check if indexes fit in buffer structure */
-               if ((sp + n) > Nex_MAXODLIST)
+               if ((sp + n) > NEX_MAXODLIST)
                {
-                  n = Nex_MAXODLIST + 1 - sp;
-                  Nexx__SDOinfoerror(context, Slave, 0, 0, 0xf000000); /* Too many entries for master buffer */
+                  n = NEX_MAXODLIST + 1 - sp;
+                  nexx_SDOinfoerror(context, Slave, 0, 0, 0xf000000); /* Too many entries for master buffer */
                   stop = TRUE;
                }
                /* trim to maximum number of ODlist entries defined */
-               if ((pODlist->Entries + n) > Nex_MAXODLIST)
+               if ((pODlist->Entries + n) > NEX_MAXODLIST)
                {
-                  n = Nex_MAXODLIST - pODlist->Entries;
+                  n = NEX_MAXODLIST - pODlist->Entries;
                }
                pODlist->Entries += n;
                /* extract indexes one by one */
@@ -1083,12 +1089,12 @@ int Nexx__readODlist(Nexx__contextt *context, uint16 Slave, Nex_ODlistt *pODlist
             {
                if ((aSDOp->Opcode &  0x7f) == ECT_SDOINFO_ERROR) /* SDO info error received */
                {
-                  Nexx__SDOinfoerror(context, Slave, 0, 0, etohl(aSDOp->ldata[0]));
+                  nexx_SDOinfoerror(context, Slave, 0, 0, etohl(aSDOp->ldata[0]));
                   stop = TRUE;
                }
                else
                {
-                  Nexx__packeterror(context, Slave, 0, 0, 1); /* Unexpected frame returned */
+                  nexx_packeterror(context, Slave, 0, 0, 1); /* Unexpected frame returned */
                }
                wkc = 0;
                x += 20;
@@ -1108,12 +1114,12 @@ int Nexx__readODlist(Nexx__contextt *context, uint16 Slave, Nex_ODlistt *pODlist
  * @param[in,out] pODlist    = referencing Object Description list.
  * @return Workcounter of slave response.
  */
-int Nexx__readODdescription(Nexx__contextt *context, uint16 Item, Nex_ODlistt *pODlist)
+int nexx_readODdescription(nexx_contextt *context, uint16 Item, nex_ODlistt *pODlist)
 {
-   Nex_SDOservicet *SDOp, *aSDOp;
+   nex_SDOservicet *SDOp, *aSDOp;
    int wkc;
    uint16  n, Slave;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_mbxbuft MbxIn, MbxOut;
    uint8 cnt;
 
    Slave = pODlist->Slave;
@@ -1121,17 +1127,17 @@ int Nexx__readODdescription(Nexx__contextt *context, uint16 Item, Nex_ODlistt *p
    pODlist->ObjectCode[Item] = 0;
    pODlist->MaxSub[Item] = 0;
    pODlist->Name[Item][0] = 0;
-   Nex_clearmbx(&MbxIn);
+   nex_clearmbx(&MbxIn);
    /* clear pending out mailbox in slave if available. Timeout is set to 0 */
-   wkc = Nexx__mbxreceive(context, Slave, &MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   aSDOp = (Nex_SDOservicet*)&MbxIn;
-   SDOp = (Nex_SDOservicet*)&MbxOut;
+   wkc = nexx_mbxreceive(context, Slave, &MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   aSDOp = (nex_SDOservicet*)&MbxIn;
+   SDOp = (nex_SDOservicet*)&MbxOut;
    SDOp->MbxHeader.length = htoes(0x0008);
    SDOp->MbxHeader.address = htoes(0x0000);
    SDOp->MbxHeader.priority = 0x00;
    /* Get new mailbox counter value */
-   cnt = Nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
+   cnt = nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
    context->slavelist[Slave].mbx_cnt = cnt;
    SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
    SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOINFO << 12)); /* number 9bits service upper 4 bits */
@@ -1140,13 +1146,13 @@ int Nexx__readODdescription(Nexx__contextt *context, uint16 Item, Nex_ODlistt *p
    SDOp->Fragments = 0; /* fragments left */
    SDOp->wdata[0] = htoes(pODlist->Index[Item]); /* Data of Index */
    /* send get object description request to slave */
-   wkc = Nexx__mbxsend(context, Slave, &MbxOut, Nex_TIMEOUTTXM);
+   wkc = nexx_mbxsend(context, Slave, &MbxOut, NEX_TIMEOUTTXM);
    /* mailbox placed in slave ? */
    if (wkc > 0)
    {
-      Nex_clearmbx(&MbxIn);
+      nex_clearmbx(&MbxIn);
       /* read slave response */
-      wkc = Nexx__mbxreceive(context, Slave, &MbxIn, Nex_TIMEOUTRXM);
+      wkc = nexx_mbxreceive(context, Slave, &MbxIn, NEX_TIMEOUTRXM);
       /* got response ? */
       if (wkc > 0)
       {
@@ -1154,9 +1160,9 @@ int Nexx__readODdescription(Nexx__contextt *context, uint16 Item, Nex_ODlistt *p
              ((aSDOp->Opcode & 0x7f) == ECT_GET_OD_RES))
          {
             n = (etohs(aSDOp->MbxHeader.length) - 12); /* length of string(name of object) */
-            if (n > Nex_MAXNAME)
+            if (n > NEX_MAXNAME)
             {
-               n = Nex_MAXNAME; /* max chars */
+               n = NEX_MAXNAME; /* max chars */
             }
             pODlist->DataType[Item] = etohs(aSDOp->wdata[1]);
             pODlist->ObjectCode[Item] = aSDOp->bdata[5];
@@ -1170,11 +1176,11 @@ int Nexx__readODdescription(Nexx__contextt *context, uint16 Item, Nex_ODlistt *p
          {
             if (((aSDOp->Opcode & 0x7f) == ECT_SDOINFO_ERROR)) /* SDO info error received */
             {
-               Nexx__SDOinfoerror(context, Slave,pODlist->Index[Item], 0, etohl(aSDOp->ldata[0]));
+               nexx_SDOinfoerror(context, Slave,pODlist->Index[Item], 0, etohl(aSDOp->ldata[0]));
             }
             else
             {
-               Nexx__packeterror(context, Slave,pODlist->Index[Item], 0, 1); /* Unexpected frame returned */
+               nexx_packeterror(context, Slave,pODlist->Index[Item], 0, 1); /* Unexpected frame returned */
             }
             wkc = 0;
          }
@@ -1185,7 +1191,7 @@ int Nexx__readODdescription(Nexx__contextt *context, uint16 Item, Nex_ODlistt *p
 }
 
 /** CoE read SDO service object entry, single subindex.
- * Used in Nex_readOE().
+ * Used in nex_readOE().
  *
  * @param[in]  context       = context struct
  * @param[in] Item           = Item in ODlist.
@@ -1194,29 +1200,29 @@ int Nexx__readODdescription(Nexx__contextt *context, uint16 Item, Nex_ODlistt *p
  * @param[out] pOElist       = resulting object entry structure.
  * @return Workcounter of slave response.
  */
-int Nexx__readOEsingle(Nexx__contextt *context, uint16 Item, uint8 SubI, Nex_ODlistt *pODlist, Nex_OElistt *pOElist)
+int nexx_readOEsingle(nexx_contextt *context, uint16 Item, uint8 SubI, nex_ODlistt *pODlist, nex_OElistt *pOElist)
 {
-   Nex_SDOservicet *SDOp, *aSDOp;
+   nex_SDOservicet *SDOp, *aSDOp;
    int wkc;
    uint16 Index, Slave;
    int16 n;
-   Nex_mbxbuft MbxIn, MbxOut;
+   nex_mbxbuft MbxIn, MbxOut;
    uint8 cnt;
 
    wkc = 0;
    Slave = pODlist->Slave;
    Index = pODlist->Index[Item];
-   Nex_clearmbx(&MbxIn);
+   nex_clearmbx(&MbxIn);
    /* clear pending out mailbox in slave if available. Timeout is set to 0 */
-   wkc = Nexx__mbxreceive(context, Slave, &MbxIn, 0);
-   Nex_clearmbx(&MbxOut);
-   aSDOp = (Nex_SDOservicet*)&MbxIn;
-   SDOp = (Nex_SDOservicet*)&MbxOut;
+   wkc = nexx_mbxreceive(context, Slave, &MbxIn, 0);
+   nex_clearmbx(&MbxOut);
+   aSDOp = (nex_SDOservicet*)&MbxIn;
+   SDOp = (nex_SDOservicet*)&MbxOut;
    SDOp->MbxHeader.length = htoes(0x000a);
    SDOp->MbxHeader.address = htoes(0x0000);
    SDOp->MbxHeader.priority = 0x00;
    /* Get new mailbox counter value */
-   cnt = Nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
+   cnt = nex_nextmbxcnt(context->slavelist[Slave].mbx_cnt);
    context->slavelist[Slave].mbx_cnt = cnt;
    SDOp->MbxHeader.mbxtype = ECT_MBXT_COE + (cnt << 4); /* CoE */
    SDOp->CANOpen = htoes(0x000 + (ECT_COES_SDOINFO << 12)); /* number 9bits service upper 4 bits */
@@ -1227,13 +1233,13 @@ int Nexx__readOEsingle(Nexx__contextt *context, uint16 Item, uint8 SubI, Nex_ODl
    SDOp->bdata[2] = SubI;       /* SubIndex */
    SDOp->bdata[3] = 1 + 2 + 4; /* get access rights, object category, PDO */
    /* send get object entry description request to slave */
-   wkc = Nexx__mbxsend(context, Slave, &MbxOut, Nex_TIMEOUTTXM);
+   wkc = nexx_mbxsend(context, Slave, &MbxOut, NEX_TIMEOUTTXM);
    /* mailbox placed in slave ? */
    if (wkc > 0)
    {
-      Nex_clearmbx(&MbxIn);
+      nex_clearmbx(&MbxIn);
       /* read slave response */
-      wkc = Nexx__mbxreceive(context, Slave, &MbxIn, Nex_TIMEOUTRXM);
+      wkc = nexx_mbxreceive(context, Slave, &MbxIn, NEX_TIMEOUTRXM);
       /* got response ? */
       if (wkc > 0)
       {
@@ -1242,9 +1248,9 @@ int Nexx__readOEsingle(Nexx__contextt *context, uint16 Item, uint8 SubI, Nex_ODl
          {
             pOElist->Entries++;
             n = (etohs(aSDOp->MbxHeader.length) - 16); /* length of string(name of object) */
-            if (n > Nex_MAXNAME)
+            if (n > NEX_MAXNAME)
             {
-               n = Nex_MAXNAME; /* max string length */
+               n = NEX_MAXNAME; /* max string length */
             }
             if (n < 0 )
             {
@@ -1263,11 +1269,11 @@ int Nexx__readOEsingle(Nexx__contextt *context, uint16 Item, uint8 SubI, Nex_ODl
          {
             if (((aSDOp->Opcode & 0x7f) == ECT_SDOINFO_ERROR)) /* SDO info error received */
             {
-               Nexx__SDOinfoerror(context, Slave, Index, SubI, etohl(aSDOp->ldata[0]));
+               nexx_SDOinfoerror(context, Slave, Index, SubI, etohl(aSDOp->ldata[0]));
             }
             else
             {
-               Nexx__packeterror(context, Slave, Index, SubI, 1); /* Unexpected frame returned */
+               nexx_packeterror(context, Slave, Index, SubI, 1); /* Unexpected frame returned */
             }
             wkc = 0;
          }
@@ -1285,7 +1291,7 @@ int Nexx__readOEsingle(Nexx__contextt *context, uint16 Item, uint8 SubI, Nex_ODl
  * @param[out] pOElist       = resulting object entry structure.
  * @return Workcounter of slave response.
  */
-int Nexx__readOE(Nexx__contextt *context, uint16 Item, Nex_ODlistt *pODlist, Nex_OElistt *pOElist)
+int nexx_readOE(nexx_contextt *context, uint16 Item, nex_ODlistt *pODlist, nex_OElistt *pOElist)
 {
    uint16 SubCount;
    int wkc;
@@ -1298,24 +1304,24 @@ int Nexx__readOE(Nexx__contextt *context, uint16 Item, Nex_ODlistt *pODlist, Nex
    for (SubCount = 0; SubCount <= SubI; SubCount++)
    {
       /* read subindex of entry */
-      wkc = Nexx__readOEsingle(context, Item, (uint8)SubCount, pODlist, pOElist);
+      wkc = nexx_readOEsingle(context, Item, (uint8)SubCount, pODlist, pOElist);
    }
 
    return wkc;
 }
 
-
+#ifdef NEX_VER1
 /** Report SDO error.
  *
  * @param[in]  Slave      = Slave number
  * @param[in]  Index      = Index that generated error
  * @param[in]  SubIdx     = Subindex that generated error
  * @param[in]  AbortCode  = Abortcode, see EtherCAT documentation for list
- * @see Nexx__SDOerror
+ * @see nexx_SDOerror
  */
-void Nex_SDOerror(uint16 Slave, uint16 Index, uint8 SubIdx, int32 AbortCode)
+void nex_SDOerror(uint16 Slave, uint16 Index, uint8 SubIdx, int32 AbortCode)
 {
-   Nexx__SDOerror(&Nexx__context, Slave, Index, SubIdx, AbortCode);
+   nexx_SDOerror(&nexx_context, Slave, Index, SubIdx, AbortCode);
 }
 
 /** CoE SDO read, blocking. Single subindex or Complete Access.
@@ -1331,14 +1337,14 @@ void Nex_SDOerror(uint16 Slave, uint16 Index, uint8 SubIdx, int32 AbortCode)
  * @param[in]  CA         = FALSE = single subindex. TRUE = Complete Access, all subindexes read.
  * @param[in,out] psize   = Size in bytes of parameter buffer, returns bytes read from SDO.
  * @param[out] p          = Pointer to parameter buffer
- * @param[in]  timeout    = Timeout in us, standard is Nex_TIMEOUTRXM
+ * @param[in]  timeout    = Timeout in us, standard is NEX_TIMEOUTRXM
  * @return Workcounter from last slave response
- * @see Nexx__SDOread
+ * @see nexx_SDOread
  */
-int Nex_SDOread(uint16 slave, uint16 index, uint8 subindex,
+int nex_SDOread(uint16 slave, uint16 index, uint8 subindex,
                boolean CA, int *psize, void *p, int timeout)
 {
-   return Nexx__SDOread(&Nexx__context, slave, index, subindex, CA, psize, p, timeout);
+   return nexx_SDOread(&nexx_context, slave, index, subindex, CA, psize, p, timeout);
 }
 
 /** CoE SDO write, blocking. Single subindex or Complete Access.
@@ -1354,14 +1360,14 @@ int Nex_SDOread(uint16 slave, uint16 index, uint8 subindex,
  * @param[in]  CA         = FALSE = single subindex. TRUE = Complete Access, all subindexes written.
  * @param[in]  psize      = Size in bytes of parameter buffer.
  * @param[out] p          = Pointer to parameter buffer
- * @param[in]  Timeout    = Timeout in us, standard is Nex_TIMEOUTRXM
+ * @param[in]  Timeout    = Timeout in us, standard is NEX_TIMEOUTRXM
  * @return Workcounter from last slave response
- * @see Nexx__SDOwrite
+ * @see nexx_SDOwrite
  */
-int Nex_SDOwrite(uint16 Slave, uint16 Index, uint8 SubIndex,
+int nex_SDOwrite(uint16 Slave, uint16 Index, uint8 SubIndex,
                 boolean CA, int psize, void *p, int Timeout)
 {
-   return Nexx__SDOwrite(&Nexx__context, Slave, Index, SubIndex, CA, psize, p, Timeout);
+   return nexx_SDOwrite(&nexx_context, Slave, Index, SubIndex, CA, psize, p, Timeout);
 }
 
 /** CoE RxPDO write, blocking.
@@ -1373,11 +1379,11 @@ int Nex_SDOwrite(uint16 Slave, uint16 Index, uint8 SubIndex,
  * @param[in]  psize         = Size in bytes of PDO buffer.
  * @param[out] p             = Pointer to PDO buffer
  * @return Workcounter from last slave response
- * @see Nexx__RxPDO
+ * @see nexx_RxPDO
  */
-int Nex_RxPDO(uint16 Slave, uint16 RxPDOnumber, int psize, void *p)
+int nex_RxPDO(uint16 Slave, uint16 RxPDOnumber, int psize, void *p)
 {
-   return Nexx__RxPDO(&Nexx__context, Slave, RxPDOnumber, psize, p);
+   return nexx_RxPDO(&nexx_context, Slave, RxPDOnumber, psize, p);
 }
 
 /** CoE TxPDO read remote request, blocking.
@@ -1388,13 +1394,13 @@ int Nex_RxPDO(uint16 Slave, uint16 RxPDOnumber, int psize, void *p)
  * @param[in]  TxPDOnumber   = Related TxPDO number
  * @param[in,out] psize      = Size in bytes of PDO buffer, returns bytes read from PDO.
  * @param[out] p             = Pointer to PDO buffer
- * @param[in]  timeout       = Timeout in us, standard is Nex_TIMEOUTRXM
+ * @param[in]  timeout       = Timeout in us, standard is NEX_TIMEOUTRXM
  * @return Workcounter from last slave response
- * @see Nexx__TxPDO
+ * @see nexx_TxPDO
  */
-int Nex_TxPDO(uint16 slave, uint16 TxPDOnumber , int *psize, void *p, int timeout)
+int nex_TxPDO(uint16 slave, uint16 TxPDOnumber , int *psize, void *p, int timeout)
 {
-   return Nexx__TxPDO(&Nexx__context, slave, TxPDOnumber, psize, p, timeout);
+   return nexx_TxPDO(&nexx_context, slave, TxPDOnumber, psize, p, timeout);
 }
 
 /** Read PDO assign structure
@@ -1402,9 +1408,9 @@ int Nex_TxPDO(uint16 slave, uint16 TxPDOnumber , int *psize, void *p, int timeou
  * @param[in]  PDOassign     = PDO assign object
  * @return total bitlength of PDO assign
  */
-int Nex_readPDOassign(uint16 Slave, uint16 PDOassign)
+int nex_readPDOassign(uint16 Slave, uint16 PDOassign)
 {
-   return Nexx__readPDOassign(&Nexx__context, Slave, PDOassign);
+   return nexx_readPDOassign(&nexx_context, Slave, PDOassign);
 }
 
 /** Read PDO assign structure in Complete Access mode
@@ -1412,11 +1418,11 @@ int Nex_readPDOassign(uint16 Slave, uint16 PDOassign)
  * @param[in]  PDOassign     = PDO assign object
  * @param[in]  Thread_n      = Calling thread index
  * @return total bitlength of PDO assign
- * @see Nexx__readPDOmap
+ * @see nexx_readPDOmap
  */
-int Nex_readPDOassignCA(uint16 Slave, uint16 PDOassign, int Thread_n)
+int nex_readPDOassignCA(uint16 Slave, uint16 PDOassign, int Thread_n)
 {
-   return Nexx__readPDOassignCA(&Nexx__context, Slave, Thread_n, PDOassign);
+   return nexx_readPDOassignCA(&nexx_context, Slave, Thread_n, PDOassign);
 }
 
 /** CoE read PDO mapping.
@@ -1425,34 +1431,34 @@ int Nex_readPDOassignCA(uint16 Slave, uint16 PDOassign, int Thread_n)
  * tries to read them and collect a full input and output mapping size
  * of designated slave.
  *
- * For details, see #Nexx__readPDOmap
+ * For details, see #nexx_readPDOmap
  *
  * @param[in] Slave    = Slave number
  * @param[out] Osize   = Size in bits of output mapping (rxPDO) found
  * @param[out] Isize   = Size in bits of input mapping (txPDO) found
  * @return >0 if mapping succesful.
  */
-int Nex_readPDOmap(uint16 Slave, int *Osize, int *Isize)
+int nex_readPDOmap(uint16 Slave, int *Osize, int *Isize)
 {
-   return Nexx__readPDOmap(&Nexx__context, Slave, Osize, Isize);
+   return nexx_readPDOmap(&nexx_context, Slave, Osize, Isize);
 }
 
 /** CoE read PDO mapping in Complete Access mode (CA).
  *
  * CANopen has standard indexes defined for PDO mapping. This function
  * tries to read them and collect a full input and output mapping size
- * of designated slave. Slave has to support CA, otherwise use Nex_readPDOmap().
+ * of designated slave. Slave has to support CA, otherwise use nex_readPDOmap().
  *
  * @param[in] Slave    = Slave number
  * @param[in] Thread_n = Calling thread index
  * @param[out] Osize   = Size in bits of output mapping (rxPDO) found
  * @param[out] Isize   = Size in bits of input mapping (txPDO) found
  * @return >0 if mapping succesful.
- * @see Nexx__readPDOmap Nex_readPDOmapCA
+ * @see nexx_readPDOmap nex_readPDOmapCA
  */
-int Nex_readPDOmapCA(uint16 Slave, int Thread_n, int *Osize, int *Isize)
+int nex_readPDOmapCA(uint16 Slave, int Thread_n, int *Osize, int *Isize)
 {
-   return Nexx__readPDOmapCA(&Nexx__context, Slave, Thread_n, Osize, Isize);
+   return nexx_readPDOmapCA(&nexx_context, Slave, Thread_n, Osize, Isize);
 }
 
 /** CoE read Object Description List.
@@ -1460,11 +1466,11 @@ int Nex_readPDOmapCA(uint16 Slave, int Thread_n, int *Osize, int *Isize)
  * @param[in] Slave      = Slave number.
  * @param[out] pODlist  = resulting Object Description list.
  * @return Workcounter of slave response.
- * @see Nexx__readODlist
+ * @see nexx_readODlist
  */
-int Nex_readODlist(uint16 Slave, Nex_ODlistt *pODlist)
+int nex_readODlist(uint16 Slave, nex_ODlistt *pODlist)
 {
-   return Nexx__readODlist(&Nexx__context, Slave, pODlist);
+   return nexx_readODlist(&nexx_context, Slave, pODlist);
 }
 
 /** CoE read Object Description. Adds textual description to object indexes.
@@ -1472,16 +1478,16 @@ int Nex_readODlist(uint16 Slave, Nex_ODlistt *pODlist)
  * @param[in] Item           = Item number in ODlist.
  * @param[in,out] pODlist    = referencing Object Description list.
  * @return Workcounter of slave response.
- * @see Nexx__readODdescription
+ * @see nexx_readODdescription
  */
-int Nex_readODdescription(uint16 Item, Nex_ODlistt *pODlist)
+int nex_readODdescription(uint16 Item, nex_ODlistt *pODlist)
 {
-   return Nexx__readODdescription(&Nexx__context, Item, pODlist);
+   return nexx_readODdescription(&nexx_context, Item, pODlist);
 }
 
-int Nex_readOEsingle(uint16 Item, uint8 SubI, Nex_ODlistt *pODlist, Nex_OElistt *pOElist)
+int nex_readOEsingle(uint16 Item, uint8 SubI, nex_ODlistt *pODlist, nex_OElistt *pOElist)
 {
-   return Nexx__readOEsingle(&Nexx__context, Item, SubI, pODlist, pOElist);
+   return nexx_readOEsingle(&nexx_context, Item, SubI, pODlist, pOElist);
 }
 
 /** CoE read SDO service object entry.
@@ -1490,10 +1496,10 @@ int Nex_readOEsingle(uint16 Item, uint8 SubI, Nex_ODlistt *pODlist, Nex_OElistt 
  * @param[in] pODlist        = Object description list for reference.
  * @param[out] pOElist       = resulting object entry structure.
  * @return Workcounter of slave response.
- * @see Nexx__readOE
+ * @see nexx_readOE
  */
-int Nex_readOE(uint16 Item, Nex_ODlistt *pODlist, Nex_OElistt *pOElist)
+int nex_readOE(uint16 Item, nex_ODlistt *pODlist, nex_OElistt *pOElist)
 {
-   return Nexx__readOE(&Nexx__context, Item, pODlist, pOElist);
+   return nexx_readOE(&nexx_context, Item, pODlist, pOElist);
 }
-
+#endif
