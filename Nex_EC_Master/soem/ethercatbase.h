@@ -79,28 +79,6 @@ typedef struct PACKED
 PACKED_END
 
 
-PACKED_BEGIN
-typedef struct PACKED
-{
-	uint16 KeyWords;
-	int32 TargetPosition;
-	uint16 TouchProbeControlWords;
-}drivercontrol_t;
-PACKED_END
-
-PACKED_BEGIN
-typedef struct PACKED
-{
-	uint16 ErrorNumber;
-	uint16 StatusWords;
-	uint8  OperationMode;
-	int32 ActualPosition;
-	uint16 TouchProbeStatusWords;
-	uint32 TouchProbeData1;
-	uint32 IOStatus;
-
-}driverstatus_t;
-PACKED_END
 
 
 #ifdef __cplusplus

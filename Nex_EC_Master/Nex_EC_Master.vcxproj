@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="application\application.h" />
     <ClInclude Include="osal\osal.h" />
     <ClInclude Include="osal\win32\inttypes.h" />
     <ClInclude Include="osal\win32\osal_defs.h" />
@@ -54,6 +55,7 @@
     <ClInclude Include="soem\ethercattype.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="application\application.c" />
     <ClCompile Include="osal\win32\osal.c" />
     <ClCompile Include="oshw\win32\nicdrv.c" />
     <ClCompile Include="oshw\win32\oshw.c" />

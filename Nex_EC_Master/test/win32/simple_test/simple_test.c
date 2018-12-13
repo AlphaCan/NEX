@@ -13,7 +13,7 @@
 #include <string.h>
 //#include <Mmsystem.h>
 
-#include "osal.h"
+//#include "osal.h"
 #include "ethercat.h"
 
 #define NEX_TIMEOUTMON 500
@@ -26,8 +26,6 @@ volatile int wkc;
 volatile int rtcnt;
 boolean inOP;
 uint8 currentgroup = 0;
-drivercontrol_t* DriverControl;
-driverstatus_t*   DriverStatus;
 
 drivercontrol_t* DriverControl = (drivercontrol_t*)(IOmap);
 driverstatus_t*   DriverStatus = (driverstatus_t*)(IOmap + 8);
@@ -174,9 +172,6 @@ void mastersetup(char *ifname)
          nex_send_processdata();
          nex_receive_processdata(NEX_TIMEOUTRET);
 
-		 DriverControl = (drivercontrol_t*)(nex_slave[0].outputs);
-		 DriverStatus = (driverstatus_t*)(nex_slave[0].inputs);
-
          /* start RT thread as periodic MM timer */
          mmResult = timeSetEvent(4, 0, RTthread, 0, TIME_PERIODIC);
 
@@ -272,6 +267,7 @@ void mastersetup(char *ifname)
     }
 }
 
+
 //DWORD WINAPI ecatcheck( LPVOID lpParam )
 OSAL_THREAD_FUNC ecatcheck(void *lpParam)
 {
@@ -286,7 +282,7 @@ OSAL_THREAD_FUNC ecatcheck(void *lpParam)
                needlf = FALSE;
                printf("\n");
             }
-            /* one ore more slaves are not responding */
+            // one ore more slaves are not responding 
             nex_group[currentgroup].docheckstate = FALSE;
             nex_readstate();
             for (slave = 1; slave <= nex_slavecount; slave++)
@@ -316,7 +312,7 @@ OSAL_THREAD_FUNC ecatcheck(void *lpParam)
                   }
                   else if(!nex_slave[slave].islost)
                   {
-                     /* re-check state */
+                     // re-check state 
                      nex_statecheck(slave, NEX_STATE_OPERATIONAL, NEX_TIMEOUTRET);
                      if (nex_slave[slave].state == NEX_STATE_NONE)
                      {

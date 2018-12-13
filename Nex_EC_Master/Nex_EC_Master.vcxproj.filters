@@ -114,6 +114,9 @@
     <ClInclude Include="soem\ethercattype.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="application\application.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="osal\win32\osal.c">
@@ -150,6 +153,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="test\win32\simple_test\simple_test.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="application\application.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

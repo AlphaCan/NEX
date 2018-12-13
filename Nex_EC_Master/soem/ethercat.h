@@ -21,5 +21,6 @@
 #include "ethercatsoe.h"
 #include "ethercatconfig.h"
 #include "ethercatprint.h"
+#include "osal.h"
 
 #endif /* _NEX_ETHERCAT_H */
