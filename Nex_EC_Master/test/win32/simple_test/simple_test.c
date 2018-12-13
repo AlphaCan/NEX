@@ -18,7 +18,7 @@
 
 #define NEX_TIMEOUTMON 500
 
-char IOmap[4096];
+char IOmap[64];
 OSAL_THREAD_HANDLE thread1;
 int expectedWKC;
 boolean needlf;
@@ -27,15 +27,22 @@ volatile int rtcnt;
 boolean inOP;
 uint8 currentgroup = 0;
 
+drivercontrol_t* DriverControl = (drivercontrol_t*)(IOmap);
+driverstatus_t*   DriverStatus = (driverstatus_t*)(IOmap + 8);
+
 /* most basic RT thread for process data, just does IO transfer */
 void CALLBACK RTthread(UINT uTimerID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1,  DWORD_PTR dw2)
 {
  //   IOmap[0]++;
-
+	
+	
     nex_send_processdata();
     wkc = nex_receive_processdata(NEX_TIMEOUTRET);
     rtcnt++;
     /* do RT control stuff here */
+
+    DriverControl->TargetPosition = DriverStatus->ActualPosition + 500;
+
 }
 
 
@@ -166,7 +173,7 @@ void mastersetup(char *ifname)
          nex_receive_processdata(NEX_TIMEOUTRET);
 
          /* start RT thread as periodic MM timer */
-         mmResult = timeSetEvent(8, 0, RTthread, 0, TIME_PERIODIC);
+         mmResult = timeSetEvent(4, 0, RTthread, 0, TIME_PERIODIC);
 
          /* request OP state for all slaves */
          nex_writestate(0);
@@ -183,11 +190,19 @@ void mastersetup(char *ifname)
             wkc_count = 0;
             inOP = TRUE;
 
-			IOmap[0] = 6;
+			
+
+			DriverControl->KeyWords = 0x80;
 			osal_usleep(8000);
-			IOmap[0] = 7;
+
+			DriverControl->KeyWords = 0x00;
 			osal_usleep(8000);
-			IOmap[0] = 15;
+
+			DriverControl->KeyWords = 6;
+			osal_usleep(8000);
+			DriverControl->KeyWords = 7;
+			osal_usleep(8000);
+			DriverControl->KeyWords = 15;
 			osal_usleep(8000);
 
             /* cyclic loop, reads data from RT thread */
@@ -210,6 +225,7 @@ void mastersetup(char *ifname)
                         printf(" T:%lld\r",nex_DCtime);
                         needlf = TRUE;
                     }
+					
                     osal_usleep(50000);
 
             }
@@ -335,7 +351,10 @@ char* Getifname(pcap_if_t *alldevs, char inum)
 {
 	pcap_if_t *d;
 	int i_open = 0;
-	for (d = alldevs, i_open = 0; i_open < inum - 1; d = d->next, i_open++);
+	for (d = alldevs, i_open = 0; i_open < inum - 1; d = d->next, i_open++)
+	{
+		printf("1\n");
+	}
 	return d->name;
 }
 
@@ -361,7 +380,7 @@ int main(int argc, char *argv[])
 		/* create thread to handle slave error handling in OP */
 		osal_thread_create(&thread1, 128000, &ecatcheck, (void*)&ctime);
 
-		mastersetup(Getifname(alldevs, 4));
+		mastersetup(Getifname(alldevs, 1));
 	}
 	else
 	{
